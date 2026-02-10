@@ -31,7 +31,15 @@ const categories = [
   { label: "Hidratacao", search: "hidratacao" },
 ];
 
-const MenuSheet = () => {
+interface MenuSheetProps {
+  homeHref?: string;
+  showDirectoryLinks?: boolean;
+}
+
+const MenuSheet = ({
+  homeHref = "/",
+  showDirectoryLinks = true,
+}: MenuSheetProps) => {
   const { data: session } = authClient.useSession();
   const handleLogin = async () => {
     const { error } = await authClient.signIn.social({
@@ -96,7 +104,7 @@ const MenuSheet = () => {
           <div className="flex flex-col">
             <SheetClose asChild>
               <Link
-                href="/"
+                href={homeHref}
                 className="flex items-center gap-3 px-5 py-3 text-sm font-medium"
               >
                 <Home className="size-4" />
@@ -130,30 +138,33 @@ const MenuSheet = () => {
 
           <div className="border-border border-b" />
 
-          <div className="flex flex-col gap-1">
-            {categories.map((category) => (
-              <SheetClose key={category.search} asChild>
-                <Link
-                  href={`/barbershops?search=${category.search}`}
-                  className="px-5 py-3 text-sm font-medium"
-                >
-                  {category.label}
-                </Link>
-              </SheetClose>
-            ))}
-          </div>
-
-          <div className="border-border border-b" />
+          {showDirectoryLinks && (
+            <div className="flex flex-col gap-1">
+              {categories.map((category) => (
+                <SheetClose key={category.search} asChild>
+                  <Link
+                    href={`/barbershops?search=${category.search}`}
+                    className="px-5 py-3 text-sm font-medium"
+                  >
+                    {category.label}
+                  </Link>
+                </SheetClose>
+              ))}
+            </div>
+          )}
 
           {isLoggedIn && (
-            <Button
-              variant="ghost"
-              className="justify-left w-fit text-left"
-              onClick={handleLogout}
-            >
-              <LogOut className="size-4" />
-              Sair da conta
-            </Button>
+            <>
+              <div className="border-border border-b" />
+              <Button
+                variant="ghost"
+                className="justify-left w-fit text-left"
+                onClick={handleLogout}
+              >
+                <LogOut className="size-4" />
+                Sair da conta
+              </Button>
+            </>
           )}
         </div>
       </SheetContent>

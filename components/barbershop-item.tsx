@@ -7,9 +7,13 @@ interface BarbershopItemProps {
 }
 
 const BarbershopItem = ({ barbershop }: BarbershopItemProps) => {
+  const barbershopHref = barbershop.slug
+    ? `/b/${barbershop.slug}`
+    : `/barbershops/${barbershop.id}`;
+
   return (
     <Link
-      href={`/barbershops/${barbershop.id}`}
+      href={barbershopHref}
       className="relative min-h-[200px] min-w-[290px] rounded-xl"
     >
       <div className="absolute top-0 left-0 z-10 h-full w-full rounded-lg bg-linear-to-t from-black to-transparent" />

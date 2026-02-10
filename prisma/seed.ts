@@ -12,6 +12,14 @@ const openingHoursData = Array.from({ length: 7 }, (_, dayOfWeek) => ({
   closed: false,
 }));
 
+const toSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 async function seedDatabase() {
   try {
     const images = [
@@ -120,6 +128,7 @@ async function seedDatabase() {
       const barbershop = await prisma.barbershop.create({
         data: {
           name,
+          slug: `${toSlug(name)}-${i + 1}`,
           address,
           imageUrl: imageUrl,
           phones: ["(11) 99999-9999", "(11) 99999-9999"],

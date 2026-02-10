@@ -1,3 +1,4 @@
+import BrandingSettingsForm from "@/components/admin/branding-settings-form";
 import Footer from "@/components/footer";
 import Header from "@/components/header";
 import PaymentSettingsForm from "@/components/admin/payment-settings-form";
@@ -190,7 +191,13 @@ const AdminPage = async () => {
         </PageSectionContent>
 
         <PageSectionContent>
-          <PageSectionTitle>Configurações de agenda</PageSectionTitle>
+          <PageSectionTitle>Configurações</PageSectionTitle>
+          <BrandingSettingsForm
+            barbershopId={barbershop.id}
+            slug={barbershop.slug}
+            logoUrl={barbershop.logoUrl}
+            showInDirectory={barbershop.showInDirectory}
+          />
           <PaymentSettingsForm
             barbershopId={barbershop.id}
             stripeEnabled={barbershop.stripeEnabled}
