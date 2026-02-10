@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Merriweather, Plus_Jakarta_Sans } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TanstackQueryProvider } from "@/providers/tanstack-query";
@@ -27,14 +28,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${plusJakartaSans.variable} ${merriweather.variable} antialiased`}
       >
-        <TanstackQueryProvider>
-          {children}
-          <Toaster />
-        </TanstackQueryProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+        >
+          <TanstackQueryProvider>
+            {children}
+            <Toaster />
+          </TanstackQueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

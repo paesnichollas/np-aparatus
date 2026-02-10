@@ -42,15 +42,6 @@ const ChatPage = () => {
         <div className="size-6" />
       </header>
 
-      {/* Status Message */}
-      <div className="px-5 pt-6">
-        <div className="rounded-xl border p-3">
-          <p className="text-muted-foreground text-center text-sm">
-            Seu assistente de agendamentos está online.
-          </p>
-        </div>
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto pb-32">
         {/* Initial AI Message */}
@@ -78,7 +69,7 @@ const ChatPage = () => {
                 <div className="bg-primary/12 flex size-8 shrink-0 items-center justify-center rounded-full border">
                   <BotMessageSquare className="text-primary size-3.5" />
                 </div>
-                <div className="prose prose-sm max-w-none text-sm leading-relaxed">
+                <div className="prose prose-sm max-w-none text-sm leading-relaxed text-foreground dark:prose-invert">
                   {message.parts.map((part, index) =>
                     part.type === "text" ? (
                       <Streamdown key={index}>{part.text}</Streamdown>
