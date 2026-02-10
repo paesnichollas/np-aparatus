@@ -37,8 +37,8 @@ model Barbershop {
 model BarbershopService {
   id                String     @id @default(uuid())
   name              String
-  description       String
-  imageUrl          String
+  description       String?
+  imageUrl          String?
   priceInCents      Int
   durationInMinutes Int        @default(30)
   barbershopId      String

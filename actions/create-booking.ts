@@ -12,6 +12,29 @@ const inputSchema = z.object({
   date: z.date(),
 });
 
+const hasInvalidServiceData = (service: {
+  name: string;
+  priceInCents: number;
+  durationInMinutes: number;
+}) => {
+  if (service.name.trim().length === 0) {
+    return true;
+  }
+
+  if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0) {
+    return true;
+  }
+
+  if (
+    !Number.isInteger(service.durationInMinutes) ||
+    service.durationInMinutes < 5
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 export const createBooking = protectedActionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: { serviceId, date }, ctx: { user } }) => {
@@ -27,6 +50,9 @@ export const createBooking = protectedActionClient
         deletedAt: null,
       },
       select: {
+        id: true,
+        name: true,
+        priceInCents: true,
         barbershopId: true,
         durationInMinutes: true,
       },
@@ -35,6 +61,18 @@ export const createBooking = protectedActionClient
     if (!service) {
       returnValidationErrors(inputSchema, {
         _errors: ["Serviço não encontrado. Por favor, selecione outro serviço."],
+      });
+    }
+
+    if (hasInvalidServiceData(service)) {
+      console.error("[createBooking] Invalid service data.", {
+        serviceId,
+        service,
+      });
+      returnValidationErrors(inputSchema, {
+        _errors: [
+          "Este serviço está temporariamente indisponível para reserva. Tente novamente mais tarde.",
+        ],
       });
     }
 

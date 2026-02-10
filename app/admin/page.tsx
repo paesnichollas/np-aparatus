@@ -1,9 +1,9 @@
 import BrandingSettingsForm from "@/components/admin/branding-settings-form";
+import ServicesManagementCard from "@/components/admin/services-management-card";
 import Footer from "@/components/footer";
 import Header from "@/components/header";
 import PaymentSettingsForm from "@/components/admin/payment-settings-form";
 import ScheduleSettingsForm from "@/components/admin/schedule-settings-form";
-import ServicesDurationForm from "@/components/admin/services-duration-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import {
   PageSectionTitle,
 } from "@/components/ui/page";
 import { getAdminBarbershopByUserId } from "@/data/barbershops";
+import { getServicesByBarbershopId } from "@/data/services";
 import { getBookingStatus } from "@/lib/booking-status";
 import { auth } from "@/lib/auth";
 import { format } from "date-fns";
@@ -34,11 +35,6 @@ import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 const getStatusBadgeVariant = (
   status: ReturnType<typeof getBookingStatus>,
@@ -103,6 +99,8 @@ const AdminPage = async () => {
     );
   }
 
+  const services = await getServicesByBarbershopId(barbershop.id);
+
   const now = new Date();
   const futureBookings = barbershop.bookings
     .filter((booking) => booking.date >= now)
@@ -152,42 +150,18 @@ const AdminPage = async () => {
         </PageSectionContent>
 
         <PageSectionContent>
-          <PageSectionTitle>Servicos</PageSectionTitle>
-          {barbershop.services.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {barbershop.services.map((service) => (
-                <Card key={service.id}>
-                  <CardContent className="flex items-center gap-3">
-                    <div className="relative size-16 overflow-hidden rounded-md border">
-                      <Image
-                        src={service.imageUrl}
-                        alt={service.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="font-semibold">{service.name}</p>
-                      <p className="text-muted-foreground text-sm line-clamp-2">
-                        {service.description}
-                      </p>
-                      <Badge variant="outline">
-                        {currencyFormatter.format(service.priceInCents / 100)}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent>
-                <p className="text-muted-foreground text-sm">
-                  Nenhum servico cadastrado.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <PageSectionTitle>Serviços</PageSectionTitle>
+          <ServicesManagementCard
+            barbershopId={barbershop.id}
+            services={services.map((service) => ({
+              id: service.id,
+              name: service.name,
+              description: service.description,
+              imageUrl: service.imageUrl,
+              priceInCents: service.priceInCents,
+              durationInMinutes: service.durationInMinutes,
+            }))}
+          />
         </PageSectionContent>
 
         <PageSectionContent>
@@ -210,14 +184,6 @@ const AdminPage = async () => {
               openMinute: openingHour.openMinute,
               closeMinute: openingHour.closeMinute,
               closed: openingHour.closed,
-            }))}
-          />
-          <ServicesDurationForm
-            barbershopId={barbershop.id}
-            services={barbershop.services.map((service) => ({
-              id: service.id,
-              name: service.name,
-              durationInMinutes: service.durationInMinutes,
             }))}
           />
         </PageSectionContent>

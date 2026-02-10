@@ -29,6 +29,8 @@ interface ServiceItemProps {
 }
 
 const ServiceItem = ({ service, barbershop }: ServiceItemProps) => {
+  const serviceImageUrl = service.imageUrl ?? barbershop.imageUrl;
+  const serviceDescription = service.description?.trim() || "Sem descrição.";
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | undefined>(
     undefined,
@@ -108,25 +110,22 @@ const ServiceItem = ({ service, barbershop }: ServiceItemProps) => {
   };
 
   return (
-    <div className="border-border bg-card flex gap-3 rounded-2xl border p-3">
-      {/* Service Image */}
-      <div className="relative h-[110px] w-[110px] shrink-0">
+      <div className="border-border bg-card flex gap-3 rounded-2xl border p-3">
+      <div className="relative h-[6.875rem] w-[6.875rem] shrink-0">
         <Image
-          src={service.imageUrl}
+          src={serviceImageUrl}
           alt={service.name}
           fill
           className="rounded-xl object-cover"
         />
       </div>
 
-      {/* Service Info */}
       <div className="flex flex-1 flex-col justify-between">
         <div className="space-y-1">
           <p className="text-sm font-bold">{service.name}</p>
-          <p className="text-muted-foreground text-sm">{service.description}</p>
+          <p className="text-muted-foreground text-sm">{serviceDescription}</p>
         </div>
 
-        {/* Price and Booking Button */}
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold">
             {formatCurrency(service.priceInCents)}
@@ -169,7 +168,6 @@ const ServiceItem = ({ service, barbershop }: ServiceItemProps) => {
                 />
               </div>
 
-              {/* Time Selection */}
               {selectedDate && (
                 <div className="border-border flex gap-3 overflow-x-auto border-b px-5 py-6 [&::-webkit-scrollbar]:hidden">
                   {availableTimeSlots?.data?.map((time) => (
@@ -185,7 +183,6 @@ const ServiceItem = ({ service, barbershop }: ServiceItemProps) => {
                 </div>
               )}
 
-              {/* Booking Summary */}
               {selectedDate && selectedTime && (
                 <div className="px-5 py-6">
                   <BookingSummary

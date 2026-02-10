@@ -113,3 +113,16 @@ export const getAdminBarbershopByUserId = async (userId: string) => {
   });
   return barbershop;
 };
+
+export const getAdminBarbershopIdByUserId = async (userId: string) => {
+  const barbershop = await prisma.barbershop.findFirst({
+    where: {
+      ownerId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return barbershop;
+};

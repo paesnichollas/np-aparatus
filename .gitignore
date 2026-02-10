@@ -2,6 +2,7 @@
 /.cursor
 /.vscode
 CLAUDE.md
+AGENTS.md
 /prompts
 # dependencies
 /node_modules
