@@ -26,7 +26,6 @@ const openingHourSchema = z
 const inputSchema = z
   .object({
     barbershopId: z.uuid(),
-    bookingIntervalMinutes: z.number().int().min(5).max(120),
     openingHours: z.array(openingHourSchema).length(7),
   })
   .superRefine((input, ctx) => {
@@ -43,10 +42,7 @@ const inputSchema = z
 export const updateBarbershopSchedule = protectedActionClient
   .inputSchema(inputSchema)
   .action(
-    async ({
-      parsedInput: { barbershopId, bookingIntervalMinutes, openingHours },
-      ctx: { user },
-    }) => {
+    async ({ parsedInput: { barbershopId, openingHours }, ctx: { user } }) => {
       const barbershop = await prisma.barbershop.findFirst({
         where: {
           id: barbershopId,
@@ -63,16 +59,8 @@ export const updateBarbershopSchedule = protectedActionClient
         });
       }
 
-      await prisma.$transaction([
-        prisma.barbershop.update({
-          where: {
-            id: barbershopId,
-          },
-          data: {
-            bookingIntervalMinutes,
-          },
-        }),
-        ...openingHours.map((openingHour) =>
+      await prisma.$transaction(
+        openingHours.map((openingHour) =>
           prisma.barbershopOpeningHours.upsert({
             where: {
               barbershopId_dayOfWeek: {
@@ -94,7 +82,7 @@ export const updateBarbershopSchedule = protectedActionClient
             },
           }),
         ),
-      ]);
+      );
 
       revalidatePath("/admin");
 

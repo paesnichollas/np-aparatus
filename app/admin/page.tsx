@@ -23,6 +23,7 @@ import { getAdminBarbershopByUserId } from "@/data/barbershops";
 import { getServicesByBarbershopId } from "@/data/services";
 import { getBookingStartDate } from "@/lib/booking-calculations";
 import { getBookingStatus } from "@/lib/booking-status";
+import { formatCurrency } from "@/lib/utils";
 import { auth } from "@/lib/auth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -58,6 +59,14 @@ const getStatusLabel = (status: ReturnType<typeof getBookingStatus>) => {
     return "Finalizado";
   }
   return "Confirmado";
+};
+
+const getBookingTotalLabel = (totalPriceInCents: number | null) => {
+  if (typeof totalPriceInCents === "number") {
+    return `Total: ${formatCurrency(totalPriceInCents)}`;
+  }
+
+  return "Total indisponivel";
 };
 
 const AdminPage = async () => {
@@ -198,7 +207,6 @@ const AdminPage = async () => {
           />
           <ScheduleSettingsForm
             barbershopId={barbershop.id}
-            bookingIntervalMinutes={barbershop.bookingIntervalMinutes}
             openingHours={barbershop.openingHours.map((openingHour) => ({
               dayOfWeek: openingHour.dayOfWeek,
               openMinute: openingHour.openMinute,
@@ -218,12 +226,15 @@ const AdminPage = async () => {
                   bookingStartAt,
                   booking.cancelledAt,
                 );
-                const serviceNames =
-                  booking.services.length > 0
-                    ? booking.services.map((bookingService) => {
-                        return bookingService.service.name;
-                      })
-                    : [booking.service.name];
+	                const serviceNames =
+	                  booking.services.length > 0
+	                    ? booking.services.map((bookingService) => {
+	                        return bookingService.service.name;
+	                      })
+	                    : [booking.service.name];
+	                const bookingTotalLabel = getBookingTotalLabel(
+	                  booking.totalPriceInCents,
+	                );
 
                 return (
                   <Card key={booking.id}>
@@ -247,13 +258,16 @@ const AdminPage = async () => {
                           <Scissors className="size-4" />
                           {serviceNames.join(" + ")}
                         </p>
-                        <p className="text-muted-foreground text-sm">
-                          Barbeiro: {booking.barber?.name ?? "Nao informado"}
-                        </p>
-                        <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                          <UserRound className="size-4" />
-                          {booking.user.name}
-                        </p>
+	                        <p className="text-muted-foreground text-sm">
+	                          Barbeiro: {booking.barber?.name ?? "Nao informado"}
+	                        </p>
+	                        <p className="text-muted-foreground text-sm">
+	                          {bookingTotalLabel}
+	                        </p>
+	                        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+	                          <UserRound className="size-4" />
+	                          {booking.user.name}
+	                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -281,12 +295,15 @@ const AdminPage = async () => {
                   bookingStartAt,
                   booking.cancelledAt,
                 );
-                const serviceNames =
-                  booking.services.length > 0
-                    ? booking.services.map((bookingService) => {
-                        return bookingService.service.name;
-                      })
-                    : [booking.service.name];
+	                const serviceNames =
+	                  booking.services.length > 0
+	                    ? booking.services.map((bookingService) => {
+	                        return bookingService.service.name;
+	                      })
+	                    : [booking.service.name];
+	                const bookingTotalLabel = getBookingTotalLabel(
+	                  booking.totalPriceInCents,
+	                );
 
                 return (
                   <Card key={booking.id}>
@@ -310,13 +327,16 @@ const AdminPage = async () => {
                           <Scissors className="size-4" />
                           {serviceNames.join(" + ")}
                         </p>
-                        <p className="text-muted-foreground text-sm">
-                          Barbeiro: {booking.barber?.name ?? "Nao informado"}
-                        </p>
-                        <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                          <UserRound className="size-4" />
-                          {booking.user.name}
-                        </p>
+	                        <p className="text-muted-foreground text-sm">
+	                          Barbeiro: {booking.barber?.name ?? "Nao informado"}
+	                        </p>
+	                        <p className="text-muted-foreground text-sm">
+	                          {bookingTotalLabel}
+	                        </p>
+	                        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+	                          <UserRound className="size-4" />
+	                          {booking.user.name}
+	                        </p>
                       </div>
                     </CardContent>
                   </Card>

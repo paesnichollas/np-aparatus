@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getBookingStartDate } from "@/lib/booking-calculations";
 import { getBookingStatus } from "@/lib/booking-status";
+import { formatCurrency } from "@/lib/utils";
 import BookingInfoSheet from "./booking-info-sheet";
 
 interface BookingItemProps {
@@ -24,6 +25,10 @@ const BookingItem = ({ booking }: BookingItemProps) => {
     booking.services.length > 0
       ? booking.services.map((bookingService) => bookingService.service.name)
       : [booking.service.name];
+  const bookingTotalLabel =
+    typeof booking.totalPriceInCents === "number"
+      ? `Total: ${formatCurrency(booking.totalPriceInCents)}`
+      : "Total indisponivel";
 
   return (
     <Sheet open={sheetIsOpen} onOpenChange={setSheetIsOpen}>
@@ -39,6 +44,7 @@ const BookingItem = ({ booking }: BookingItemProps) => {
             )}
             <div className="flex flex-col gap-2">
               <p className="font-bold">{bookingServiceNames.join(" + ")}</p>
+              <p className="text-muted-foreground text-sm">{bookingTotalLabel}</p>
               <div className="flex items-center gap-2">
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={booking.barbershop.imageUrl} />

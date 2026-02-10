@@ -17,7 +17,6 @@ type OpeningHourFormValue = {
 
 type ScheduleSettingsFormProps = {
   barbershopId: string;
-  bookingIntervalMinutes: number;
   openingHours: OpeningHourFormValue[];
 };
 
@@ -79,12 +78,8 @@ const mergeOpeningHours = (openingHours: OpeningHourFormValue[]) =>
 
 const ScheduleSettingsForm = ({
   barbershopId,
-  bookingIntervalMinutes,
   openingHours,
 }: ScheduleSettingsFormProps) => {
-  const [intervalInput, setIntervalInput] = useState(
-    String(bookingIntervalMinutes),
-  );
   const [hoursInput, setHoursInput] = useState<OpeningHourFormValue[]>(
     mergeOpeningHours(openingHours),
   );
@@ -133,16 +128,8 @@ const ScheduleSettingsForm = ({
   };
 
   const handleSubmit = async () => {
-    const parsedIntervalInput = Number(intervalInput);
-
-    if (Number.isNaN(parsedIntervalInput)) {
-      toast.error("Informe um intervalo de agenda válido.");
-      return;
-    }
-
     const result = await executeUpdateSchedule({
       barbershopId,
-      bookingIntervalMinutes: parsedIntervalInput,
       openingHours: hoursInput,
     });
 
@@ -166,26 +153,10 @@ const ScheduleSettingsForm = ({
       <CardHeader>
         <CardTitle>Configurações da agenda</CardTitle>
         <CardDescription>
-          Defina intervalo de agenda e horário de funcionamento por dia da
-          semana.
+          Defina horario de funcionamento por dia da semana.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="max-w-xs space-y-2">
-          <label htmlFor="booking-interval" className="text-sm font-medium">
-            Intervalo da agenda (minutos)
-          </label>
-          <Input
-            id="booking-interval"
-            type="number"
-            min={5}
-            step={5}
-            value={intervalInput}
-            onChange={(event) => setIntervalInput(event.target.value)}
-            disabled={isPending}
-          />
-        </div>
-
         <div className="space-y-3">
           {hoursInput.map((openingHour) => (
             <div
