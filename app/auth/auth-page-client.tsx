@@ -12,10 +12,32 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 const MIN_PHONE_LENGTH = 10;
-const MAX_PHONE_LENGTH = 15;
+const MAX_PHONE_LENGTH = 11;
 
 const normalizePhoneNumber = (phoneNumber: string) => {
   return phoneNumber.replace(/\D/g, "");
+};
+
+const formatPhoneBR = (phoneNumber: string) => {
+  const digits = normalizePhoneNumber(phoneNumber).slice(0, MAX_PHONE_LENGTH);
+
+  if (digits.length === 0) {
+    return "";
+  }
+
+  if (digits.length <= 2) {
+    return `(${digits}`;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 };
 
 const getSafeCallbackUrl = (callbackUrl: string | null) => {
@@ -41,7 +63,7 @@ const AuthPage = () => {
   }, [searchParams]);
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isPhoneLoading, setIsPhoneLoading] = useState(false);
 
@@ -68,7 +90,10 @@ const AuthPage = () => {
     event.preventDefault();
 
     const normalizedName = name.trim();
-    const normalizedPhoneNumber = normalizePhoneNumber(phone);
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneDigits).slice(
+      0,
+      MAX_PHONE_LENGTH,
+    );
 
     if (normalizedName.length < 2) {
       toast.error("Informe um nome valido.");
@@ -174,9 +199,17 @@ const AuthPage = () => {
                 <Input
                   id="auth-phone"
                   type="tel"
+                  inputMode="tel"
                   autoComplete="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  value={formatPhoneBR(phoneDigits)}
+                  onChange={(event) =>
+                    setPhoneDigits(
+                      normalizePhoneNumber(event.target.value).slice(
+                        0,
+                        MAX_PHONE_LENGTH,
+                      ),
+                    )
+                  }
                   className="pl-9"
                   placeholder="(11) 99999-9999"
                   disabled={isSubmitting}
