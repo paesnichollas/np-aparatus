@@ -303,7 +303,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const response = NextResponse.redirect(new URL(authCallbackUrl));
+  const response = NextResponse.json({ ok: true }, { status: 200 });
   appendSetCookieHeaders(authResponse.headers, response.headers);
+  response.headers.set("cache-control", "no-store");
   return response;
 }
