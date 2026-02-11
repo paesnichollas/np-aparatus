@@ -4,6 +4,7 @@ import { Loader2, LogIn, Phone, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,7 +161,16 @@ const AuthPage = () => {
     <main className="flex min-h-screen items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Entrar na Aparatus</CardTitle>
+          <CardTitle className="flex justify-center">
+            <Image
+              src="/logo.svg"
+              alt="Aparatus"
+              width={192}
+              height={40}
+              className="h-10 w-auto dark:invert"
+              priority
+            />
+          </CardTitle>
           <p className="text-muted-foreground text-sm">
             Continue com Google ou acesse com nome e telefone.
           </p>

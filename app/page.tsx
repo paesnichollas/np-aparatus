@@ -2,6 +2,7 @@ import Image from "next/image";
 import { cookies } from "next/headers";
 
 import BarbershopItem from "@/components/barbershop-item";
+import BackToTopButton from "@/components/back-to-top-button";
 import BookingItem from "@/components/booking-item";
 import ExclusiveBarbershopLanding from "@/components/exclusive-barbershop-landing";
 import Footer from "@/components/footer";
@@ -45,6 +46,7 @@ export default async function Home() {
         <Header homeHref="/" />
         <ExclusiveBarbershopLanding barbershop={exclusiveBarbershop} />
         <Footer />
+        <BackToTopButton />
       </div>
     );
   }
@@ -95,6 +97,7 @@ export default async function Home() {
         </PageSectionContent>
       </PageContainer>
       <Footer />
+      <BackToTopButton />
     </div>
   );
 }
