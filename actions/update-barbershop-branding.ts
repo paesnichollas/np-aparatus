@@ -120,7 +120,7 @@ export const updateBarbershopBranding = protectedActionClient
 
       revalidatePath("/");
       revalidatePath("/barbershops");
-      revalidatePath("/admin");
+      revalidatePath("/owner");
       revalidatePath(`/b/${barbershop.slug}`);
       revalidatePath(`/b/${updatedBarbershop.slug}`);
 
@@ -135,3 +135,4 @@ export const updateBarbershopBranding = protectedActionClient
       };
     },
   );
+

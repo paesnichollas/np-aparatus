@@ -6,6 +6,7 @@ import {
   LogIn,
   LogOut,
   MenuIcon,
+  Shield,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -43,6 +44,7 @@ const MenuSheet = ({
 }: MenuSheetProps) => {
   const { data: session } = authClient.useSession();
   const user = session?.user;
+  const userRole = (user as { role?: string } | undefined)?.role;
 
   const handleLogout = async () => {
     const { error } = await authClient.signOut();
@@ -53,6 +55,9 @@ const MenuSheet = ({
   };
 
   const isLoggedIn = Boolean(user);
+  const canAccessOwnerPanel =
+    !userRole || userRole === "OWNER" || userRole === "ADMIN";
+  const canAccessAdminPanel = userRole === "ADMIN";
 
   return (
     <Sheet>
@@ -113,7 +118,21 @@ const MenuSheet = ({
                 Agendamentos
               </Link>
             </SheetClose>
-            {isLoggedIn && (
+            {isLoggedIn && canAccessOwnerPanel && (
+              <SheetClose asChild>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="h-auto justify-start rounded-none px-5 py-3 text-sm font-medium"
+                >
+                  <Link href="/owner">
+                    <ShieldCheck className="size-4" />
+                    Painel do owner
+                  </Link>
+                </Button>
+              </SheetClose>
+            )}
+            {isLoggedIn && canAccessAdminPanel && (
               <SheetClose asChild>
                 <Button
                   asChild
@@ -121,8 +140,8 @@ const MenuSheet = ({
                   className="h-auto justify-start rounded-none px-5 py-3 text-sm font-medium"
                 >
                   <Link href="/admin">
-                    <ShieldCheck className="size-4" />
-                    Painel administrativo
+                    <Shield className="size-4" />
+                    Painel admin
                   </Link>
                 </Button>
               </SheetClose>

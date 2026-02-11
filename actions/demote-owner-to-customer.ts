@@ -22,7 +22,7 @@ export const demoteOwnerToCustomer = protectedActionClient
         userId,
       });
 
-      revalidatePath("/admin");
+      revalidatePath("/owner");
 
       return result;
     } catch (error) {
@@ -35,3 +35,4 @@ export const demoteOwnerToCustomer = protectedActionClient
       throw error;
     }
   });
+

@@ -92,7 +92,7 @@ export const createService = protectedActionClient
         },
       });
 
-      revalidatePath("/admin");
+      revalidatePath("/owner");
       revalidatePath("/");
       revalidatePath("/barbershops");
       revalidatePath(`/b/${barbershop.slug}`);
@@ -101,3 +101,4 @@ export const createService = protectedActionClient
       return createdService;
     },
   );
+

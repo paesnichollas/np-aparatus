@@ -39,10 +39,11 @@ export const updateBarbershopStripeEnabled = protectedActionClient
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
 
     return {
       success: true,
       stripeEnabled,
     };
   });
+

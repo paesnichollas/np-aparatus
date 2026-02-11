@@ -47,7 +47,7 @@ export const deleteService = protectedActionClient
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
     revalidatePath(`/b/${service.barbershop.slug}`);
     revalidatePath(`/barbershops/${service.barbershop.id}`);
 
@@ -56,3 +56,4 @@ export const deleteService = protectedActionClient
       serviceId: service.id,
     };
   });
+

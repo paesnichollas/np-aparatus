@@ -352,3 +352,6 @@ export const getAdminBarbershopIdByUserId = async (userId: string) => {
 
   return barbershop;
 };
+
+export const getOwnerBarbershopByUserId = getAdminBarbershopByUserId;
+export const getOwnerBarbershopIdByUserId = getAdminBarbershopIdByUserId;

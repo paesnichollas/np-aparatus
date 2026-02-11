@@ -1,6 +1,6 @@
 "use server";
 
-import { getAdminBarbershopIdByUserId } from "@/data/barbershops";
+import { getOwnerBarbershopIdByUserId } from "@/data/barbershops";
 import { getServiceById, updateServiceById } from "@/data/services";
 import { protectedActionClient } from "@/lib/action-client";
 import { revalidatePath } from "next/cache";
@@ -48,11 +48,11 @@ export const updateService = protectedActionClient
       },
       ctx: { user },
     }) => {
-      const adminBarbershop = await getAdminBarbershopIdByUserId(user.id);
+      const ownerBarbershop = await getOwnerBarbershopIdByUserId(user.id);
 
-      if (!adminBarbershop) {
+      if (!ownerBarbershop) {
         returnValidationErrors(inputSchema, {
-          _errors: ["Barbearia do administrador não encontrada."],
+          _errors: ["Barbearia do owner nao encontrada."],
         });
       }
 
@@ -64,7 +64,7 @@ export const updateService = protectedActionClient
         });
       }
 
-      if (service.barbershopId !== adminBarbershop.id) {
+      if (service.barbershopId !== ownerBarbershop.id) {
         throw new Error(
           "403: Você não tem permissão para editar serviços de outra barbearia.",
         );
@@ -87,7 +87,7 @@ export const updateService = protectedActionClient
         durationInMinutes,
       });
 
-      revalidatePath("/admin");
+      revalidatePath("/owner");
       revalidatePath("/");
       revalidatePath("/barbershops");
       revalidatePath(`/b/${service.barbershop.slug}`);
@@ -96,3 +96,6 @@ export const updateService = protectedActionClient
       return updatedService;
     },
   );
+
+
+

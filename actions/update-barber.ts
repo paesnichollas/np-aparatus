@@ -80,9 +80,10 @@ export const updateBarber = protectedActionClient
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
     revalidatePath(`/b/${barber.barbershop.slug}`);
     revalidatePath(`/barbershops/${barber.barbershop.id}`);
 
     return updatedBarber;
   });
+

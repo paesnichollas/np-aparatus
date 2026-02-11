@@ -74,7 +74,7 @@ export const deleteBarber = protectedActionClient
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
     revalidatePath(`/b/${barber.barbershop.slug}`);
     revalidatePath(`/barbershops/${barber.barbershop.id}`);
 
@@ -83,3 +83,4 @@ export const deleteBarber = protectedActionClient
       barberId: barber.id,
     };
   });
+

@@ -81,9 +81,10 @@ export const updateBarbershopServicesDuration = protectedActionClient
       ),
     );
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
 
     return {
       success: true,
     };
   });
+

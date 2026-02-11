@@ -71,9 +71,10 @@ export const createBarber = protectedActionClient
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath("/owner");
     revalidatePath(`/b/${barbershop.slug}`);
     revalidatePath(`/barbershops/${barbershop.id}`);
 
     return createdBarber;
   });
+

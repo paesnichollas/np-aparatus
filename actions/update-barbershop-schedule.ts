@@ -84,10 +84,11 @@ export const updateBarbershopSchedule = protectedActionClient
         ),
       );
 
-      revalidatePath("/admin");
+      revalidatePath("/owner");
 
       return {
         success: true,
       };
     },
   );
+

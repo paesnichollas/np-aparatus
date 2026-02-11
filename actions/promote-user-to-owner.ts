@@ -30,7 +30,7 @@ export const promoteUserToOwner = protectedActionClient
           allowTransfer: allowTransfer ?? false,
         });
 
-        revalidatePath("/admin");
+        revalidatePath("/owner");
 
         return result;
       } catch (error) {
@@ -44,3 +44,4 @@ export const promoteUserToOwner = protectedActionClient
       }
     },
   );
+

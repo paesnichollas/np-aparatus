@@ -1,0 +1,37 @@
+"use server";
+
+import { adminUpdateBarbershop } from "@/data/admin/barbershops";
+import { protectedActionClient } from "@/lib/action-client";
+import { revalidatePath } from "next/cache";
+import { returnValidationErrors } from "next-safe-action";
+import { z } from "zod";
+
+const inputSchema = z.object({
+  barbershopId: z.uuid(),
+  name: z.string().trim().min(2).max(80),
+  phones: z.array(z.string().trim().min(8).max(30)).min(1).max(6),
+  exclusiveBarber: z.boolean(),
+  stripeEnabled: z.boolean(),
+  ownerId: z.union([z.uuid(), z.null()]).optional(),
+});
+
+export const adminUpdateBarbershopAction = protectedActionClient
+  .inputSchema(inputSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const updatedBarbershop = await adminUpdateBarbershop(parsedInput);
+
+      revalidatePath("/admin");
+      revalidatePath("/admin/barbershops");
+      revalidatePath(`/admin/barbershops/${updatedBarbershop.id}`);
+      revalidatePath("/owner");
+      revalidatePath(`/b/${updatedBarbershop.slug}`);
+      revalidatePath(`/barbershops/${updatedBarbershop.id}`);
+
+      return updatedBarbershop;
+    } catch (error) {
+      returnValidationErrors(inputSchema, {
+        _errors: [error instanceof Error ? error.message : "Falha ao atualizar barbearia."],
+      });
+    }
+  });
