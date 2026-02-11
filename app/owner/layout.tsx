@@ -16,7 +16,7 @@ const OwnerLayout = async ({
       <Header homeHref="/" showDirectoryLinks={false} />
       <PageContainer>
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg font-semibold">Area do owner</h1>
+          <h1 className="text-lg font-semibold">Area Administrador</h1>
           <Badge variant={isAdmin(user.role) ? "secondary" : "default"}>
             {isAdmin(user.role) ? "Acesso de administrador" : "Owner"}
           </Badge>

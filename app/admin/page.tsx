@@ -26,6 +26,12 @@ const adminCards = [
     title: "Reservas",
     description: "Consulta de reservas com filtros por barbearia, periodo e status.",
   },
+  {
+    href: "/owner/reports",
+    title: "Relatorio",
+    description:
+      "Acompanhe pedidos e faturamento por barbearia no periodo semanal ou mensal.",
+  },
 ];
 
 const AdminPage = async () => {
@@ -33,7 +39,7 @@ const AdminPage = async () => {
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Dashboard administrativo</h2>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {adminCards.map((card) => (
           <Card key={card.href}>
             <CardHeader>

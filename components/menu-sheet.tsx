@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import {
+  BarChart3,
   CalendarDays,
   Home,
   LogIn,
@@ -119,18 +120,32 @@ const MenuSheet = ({
               </Link>
             </SheetClose>
             {isLoggedIn && canAccessOwnerPanel && (
-              <SheetClose asChild>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="h-auto justify-start rounded-none px-5 py-3 text-sm font-medium"
-                >
-                  <Link href="/owner">
-                    <ShieldCheck className="size-4" />
-                    Painel do owner
-                  </Link>
-                </Button>
-              </SheetClose>
+              <>
+                <SheetClose asChild>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="h-auto justify-start rounded-none px-5 py-3 text-sm font-medium"
+                  >
+                    <Link href="/owner">
+                      <ShieldCheck className="size-4" />
+                      Painel Administrativo
+                    </Link>
+                  </Button>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="h-auto justify-start rounded-none px-5 py-3 text-sm font-medium"
+                  >
+                    <Link href="/owner/reports">
+                      <BarChart3 className="size-4" />
+                      Relatório
+                    </Link>
+                  </Button>
+                </SheetClose>
+              </>
             )}
             {isLoggedIn && canAccessAdminPanel && (
               <SheetClose asChild>

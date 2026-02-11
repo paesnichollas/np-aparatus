@@ -25,6 +25,7 @@ import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+  BarChart3,
   CalendarDays,
   MessageCircleMore,
   Phone,
@@ -86,7 +87,7 @@ const OwnerPage = async () => {
   if (!barbershop) {
     return (
       <PageSectionContent>
-        <PageSectionTitle>Painel do owner</PageSectionTitle>
+        <PageSectionTitle>Painel Administrativo</PageSectionTitle>
         <Card>
           <CardHeader>
             <CardTitle>Nenhuma barbearia vinculada</CardTitle>
@@ -134,7 +135,15 @@ const OwnerPage = async () => {
   return (
     <>
       <PageSectionContent>
-        <PageSectionTitle>Painel do owner</PageSectionTitle>
+        <div className="flex items-center justify-between gap-3">
+          <PageSectionTitle>Painel Administrativo</PageSectionTitle>
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <Link href="/owner/reports">
+              <BarChart3 className="size-4" />
+              Relatório
+            </Link>
+          </Button>
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>{barbershop.name}</CardTitle>
