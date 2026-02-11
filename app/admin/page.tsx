@@ -19,7 +19,10 @@ import {
   PageSectionContent,
   PageSectionTitle,
 } from "@/components/ui/page";
-import { getAdminBarbershopByUserId } from "@/data/barbershops";
+import {
+  getAdminBarbershopByUserId,
+  getBarbershopShareLink,
+} from "@/data/barbershops";
 import { getServicesByBarbershopId } from "@/data/services";
 import { getBookingStartDate } from "@/lib/booking-calculations";
 import { getBookingStatus } from "@/lib/booking-status";
@@ -69,9 +72,22 @@ const getBookingTotalLabel = (totalPriceInCents: number | null) => {
   return "Total indisponivel";
 };
 
+const getRequestOrigin = (requestHeaders: Headers) => {
+  const host =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+
+  if (!host) {
+    return null;
+  }
+
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  return `${protocol}://${host}`;
+};
+
 const AdminPage = async () => {
+  const requestHeaders = await headers();
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: requestHeaders,
   });
 
   if (!session?.user) {
@@ -111,6 +127,10 @@ const AdminPage = async () => {
   }
 
   const services = await getServicesByBarbershopId(barbershop.id);
+  const shareLink = await getBarbershopShareLink(
+    barbershop.id,
+    getRequestOrigin(requestHeaders),
+  );
 
   const now = new Date();
   const futureBookings = barbershop.bookings
@@ -203,7 +223,7 @@ const AdminPage = async () => {
             phones={barbershop.phones}
             imageUrl={barbershop.imageUrl}
             slug={barbershop.slug}
-            showInDirectory={barbershop.showInDirectory}
+            shareLink={shareLink}
           />
           <PaymentSettingsForm
             barbershopId={barbershop.id}

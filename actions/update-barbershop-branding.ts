@@ -16,7 +16,6 @@ const inputSchema = z.object({
   phones: z.array(z.string().trim().min(8).max(30)).min(1).max(6),
   imageUrl: z.string().trim().max(500),
   slug: z.string().trim().min(3).max(60).regex(slugRegex),
-  showInDirectory: z.boolean(),
 });
 
 const hasValidImageUrl = (value: string) => {
@@ -44,7 +43,6 @@ export const updateBarbershopBranding = protectedActionClient
         phones,
         imageUrl,
         slug,
-        showInDirectory,
       },
       ctx: { user },
     }) => {
@@ -109,7 +107,6 @@ export const updateBarbershopBranding = protectedActionClient
           phones: normalizedPhones,
           imageUrl: normalizedImageUrl,
           slug,
-          showInDirectory,
         },
         select: {
           name: true,
@@ -118,7 +115,6 @@ export const updateBarbershopBranding = protectedActionClient
           phones: true,
           imageUrl: true,
           slug: true,
-          showInDirectory: true,
         },
       });
 
@@ -136,7 +132,6 @@ export const updateBarbershopBranding = protectedActionClient
         phones: updatedBarbershop.phones,
         imageUrl: updatedBarbershop.imageUrl,
         slug: updatedBarbershop.slug,
-        showInDirectory: updatedBarbershop.showInDirectory,
       };
     },
   );

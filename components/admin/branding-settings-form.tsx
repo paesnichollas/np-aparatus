@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ImageOff, Loader2 } from "lucide-react";
+import { Copy, ImageOff, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
@@ -26,7 +26,7 @@ type BrandingSettingsFormProps = {
   phones: string[];
   imageUrl: string;
   slug: string;
-  showInDirectory: boolean;
+  shareLink: string;
 };
 
 const normalizeSlugValue = (value: string) =>
@@ -54,7 +54,7 @@ const BrandingSettingsForm = ({
   phones,
   imageUrl,
   slug,
-  showInDirectory,
+  shareLink,
 }: BrandingSettingsFormProps) => {
   const router = useRouter();
   const [nameInput, setNameInput] = useState(name);
@@ -74,6 +74,11 @@ const BrandingSettingsForm = ({
 
   const isFormBusy = isPending || isUploadingBackgroundImage;
   const slugPreview = useMemo(() => normalizeSlugValue(slugInput), [slugInput]);
+
+  const handleCopyShareLink = async () => {
+    await navigator.clipboard.writeText(shareLink);
+    toast.success("Link copiado com sucesso.");
+  };
 
   const handleBackgroundImageUpload = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -154,7 +159,6 @@ const BrandingSettingsForm = ({
       phones: parsedPhones,
       imageUrl: backgroundImageUrl.trim(),
       slug: slugPreview,
-      showInDirectory,
     });
 
     if (result.validationErrors) {
@@ -309,8 +313,32 @@ const BrandingSettingsForm = ({
               disabled={isFormBusy}
             />
             <p className="text-muted-foreground text-xs">
-              URL: {slugPreview ? `/b/${slugPreview}` : "/b/slug-da-barbearia"}
+              Esse slug e usado na rota por slug da barbearia.
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="barbershop-share-link" className="text-sm font-medium">
+              Link de compartilhamento
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="barbershop-share-link"
+                value={shareLink}
+                readOnly
+                disabled={isFormBusy}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCopyShareLink}
+                disabled={isFormBusy}
+                className="gap-2"
+              >
+                <Copy className="size-4" />
+                Copiar link
+              </Button>
+            </div>
           </div>
 
           <Button type="submit" disabled={isFormBusy || !slugPreview}>

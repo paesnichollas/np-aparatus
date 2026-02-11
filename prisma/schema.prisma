@@ -17,31 +17,29 @@ model Barbershop {
   id                     String                  @id @default(uuid())
   name                   String
   slug                   String                  @unique
+  shareSlug              String?                 @unique
   address                String
   description            String
   imageUrl               String
   logoUrl                String?
-  showInDirectory        Boolean                 @default(true)
+  exclusiveBarber        Boolean                 @default(false)
   phones                 String[]
   bookingIntervalMinutes Int                     @default(30)
   stripeEnabled          Boolean                 @default(true)
-  ownerId                String?
+  ownerId                String?                 @unique
   owner                  User?                   @relation("BarbershopOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users                  User[]                  @relation("UserBarbershop")
   barbers                Barber[]
   services               BarbershopService[]
   bookings               Booking[]
   openingHours           BarbershopOpeningHours[]
-  appConfigs             AppConfig[]             @relation("ExclusiveBarbershopConfig")
+  customerBarbershops    CustomerBarbershop[]
+  currentUsers           User[]                  @relation("CurrentBarbershopContext")
 
-  @@index([ownerId])
 }
 
 model AppConfig {
-  id                    String     @id @default("app")
-  exclusiveBarbershopId String?
-  exclusiveBarbershop   Barbershop? @relation("ExclusiveBarbershopConfig", fields: [exclusiveBarbershopId], references: [id], onDelete: SetNull)
-
-  @@index([exclusiveBarbershopId])
+  id String @id @default("app")
 }
 
 model BarbershopService {
@@ -141,21 +139,42 @@ enum UserRole {
 }
 
 model User {
-  id              String       @id
-  name            String
-  email           String
-  emailVerified   Boolean      @default(false)
-  image           String?
-  role            UserRole     @default(CUSTOMER)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  sessions        Session[]
-  accounts        Account[]
-  bookings        Booking[]
-  ownedBarbershops Barbershop[] @relation("BarbershopOwner")
+  id                 String                @id
+  name               String
+  email              String
+  phone              String?               @unique
+  emailVerified      Boolean               @default(false)
+  image              String?
+  role               UserRole              @default(CUSTOMER)
+  barbershopId       String?
+  barbershop         Barbershop?           @relation("UserBarbershop", fields: [barbershopId], references: [id], onDelete: SetNull)
+  currentBarbershopId String?
+  currentBarbershop  Barbershop?           @relation("CurrentBarbershopContext", fields: [currentBarbershopId], references: [id], onDelete: SetNull)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  sessions           Session[]
+  accounts           Account[]
+  bookings           Booking[]
+  ownedBarbershop    Barbershop?           @relation("BarbershopOwner")
+  customerBarbershops CustomerBarbershop[]
 
   @@unique([email])
+  @@index([barbershopId])
+  @@index([currentBarbershopId])
   @@map("user")
+}
+
+model CustomerBarbershop {
+  id           String     @id @default(uuid())
+  customerId   String
+  barbershopId String
+  createdAt    DateTime   @default(now())
+  customer     User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, barbershopId])
+  @@index([customerId])
+  @@index([barbershopId])
 }
 
 model Session {

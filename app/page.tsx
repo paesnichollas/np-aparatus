@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { cookies, headers } from "next/headers";
 
 import BarbershopItem from "@/components/barbershop-item";
 import BookingItem from "@/components/booking-item";
@@ -6,19 +7,41 @@ import ExclusiveBarbershopLanding from "@/components/exclusive-barbershop-landin
 import Footer from "@/components/footer";
 import Header from "@/components/header";
 import QuickSearch from "@/components/quick-search";
-import { getExclusiveBarbershop } from "@/data/app-config";
-import { getBarbershops, getPopularBarbershops } from "@/data/barbershops";
+import {
+  getBarbershops,
+  getExclusiveBarbershopByContextId,
+  getPopularBarbershops,
+} from "@/data/barbershops";
 import { getUserBookings } from "@/data/bookings";
+import { getPreferredBarbershopIdForUser } from "@/data/customer-barbershops";
 import {
   PageContainer,
   PageSectionContent,
   PageSectionScroller,
   PageSectionTitle,
 } from "@/components/ui/page";
+import { auth } from "@/lib/auth";
+import { BARBERSHOP_CONTEXT_COOKIE_NAME } from "@/lib/barbershop-context";
 import banner from "@/public/banner.png";
 
 export default async function Home() {
-  const exclusiveBarbershop = await getExclusiveBarbershop();
+  const cookieStore = await cookies();
+  const barbershopContextIdFromCookie =
+    cookieStore.get(BARBERSHOP_CONTEXT_COOKIE_NAME)?.value ?? null;
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  });
+
+  const fallbackBarbershopContextId = session?.user
+    ? await getPreferredBarbershopIdForUser(session.user.id)
+    : null;
+  const barbershopContextId =
+    barbershopContextIdFromCookie ?? fallbackBarbershopContextId;
+
+  const exclusiveBarbershop = await getExclusiveBarbershopByContextId(
+    barbershopContextId,
+  );
 
   if (exclusiveBarbershop) {
     return (
