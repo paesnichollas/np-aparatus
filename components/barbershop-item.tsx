@@ -1,15 +1,16 @@
-import { Barbershop } from "@/generated/prisma/client";
+import { type BarbershopListItem } from "@/data/barbershops";
 import Image from "next/image";
 import Link from "next/link";
 
 interface BarbershopItemProps {
-  barbershop: Barbershop;
+  barbershop: BarbershopListItem;
 }
 
 const BarbershopItem = ({ barbershop }: BarbershopItemProps) => {
-  const barbershopHref = barbershop.slug
-    ? `/b/${barbershop.slug}`
+  const baseHref = barbershop.isExclusive
+    ? `/exclusive/${barbershop.id}`
     : `/barbershops/${barbershop.id}`;
+  const barbershopHref = `${baseHref}?from=general_list`;
 
   return (
     <Link

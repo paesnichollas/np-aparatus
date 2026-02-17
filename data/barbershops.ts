@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { CONFIRMED_BOOKING_PAYMENT_WHERE } from "@/lib/booking-payment";
 import { buildPublicSlugCandidate, getPublicSlugBase } from "@/lib/public-slug";
 import { reconcilePendingBookingsForBarbershop } from "@/lib/stripe-booking-reconciliation";
+import { createShareLinkToken } from "@/lib/share-link-token";
 
 export type AdminBarbershopWithRelations = Prisma.BarbershopGetPayload<{
   include: {
@@ -23,6 +24,15 @@ export type AdminBarbershopWithRelations = Prisma.BarbershopGetPayload<{
     };
   };
 }>;
+
+export interface BarbershopListItem {
+  id: string;
+  name: string;
+  address: string;
+  imageUrl: string;
+  slug: string;
+  isExclusive: boolean;
+}
 
 const PUBLIC_SLUG_MAX_GENERATION_ATTEMPTS = 50;
 
@@ -46,6 +56,32 @@ const BARBERSHOP_DETAILS_INCLUDE = {
     },
   },
 } satisfies Prisma.BarbershopInclude;
+
+const BARBERSHOP_LIST_ITEM_SELECT = {
+  id: true,
+  name: true,
+  address: true,
+  imageUrl: true,
+  slug: true,
+  exclusiveBarber: true,
+} satisfies Prisma.BarbershopSelect;
+
+type BarbershopListRecord = Prisma.BarbershopGetPayload<{
+  select: typeof BARBERSHOP_LIST_ITEM_SELECT;
+}>;
+
+const mapBarbershopListItem = (
+  barbershop: BarbershopListRecord,
+): BarbershopListItem => {
+  return {
+    id: barbershop.id,
+    name: barbershop.name,
+    address: barbershop.address,
+    imageUrl: barbershop.imageUrl,
+    slug: barbershop.slug,
+    isExclusive: barbershop.exclusiveBarber,
+  };
+};
 
 const parseAbsoluteHttpUrl = (value: string | null | undefined) => {
   const normalizedValue = value?.trim();
@@ -111,23 +147,19 @@ const resolveAvailablePublicSlug = async ({
 
 export const getBarbershops = async () => {
   const barbershops = await prisma.barbershop.findMany({
-    where: {
-      exclusiveBarber: false,
-    },
+    select: BARBERSHOP_LIST_ITEM_SELECT,
   });
-  return barbershops;
+  return barbershops.map(mapBarbershopListItem);
 };
 
 export const getPopularBarbershops = async () => {
   const popularBarbershops = await prisma.barbershop.findMany({
-    where: {
-      exclusiveBarber: false,
-    },
+    select: BARBERSHOP_LIST_ITEM_SELECT,
     orderBy: {
       name: "desc",
     },
   });
-  return popularBarbershops;
+  return popularBarbershops.map(mapBarbershopListItem);
 };
 
 export const getBarbershopById = async (id: string) => {
@@ -254,6 +286,10 @@ export const getBarbershopShareLink = async (
   origin?: string | null,
 ) => {
   const publicSlug = await ensureBarbershopPublicSlug(barbershopId);
+  const shareToken = createShareLinkToken({
+    barbershopId,
+    publicSlug,
+  });
   const baseUrl =
     parseAbsoluteHttpUrl(process.env.NEXT_PUBLIC_APP_URL) ??
     parseAbsoluteHttpUrl(origin);
@@ -264,7 +300,10 @@ export const getBarbershopShareLink = async (
     );
   }
 
-  return new URL(`/s/${publicSlug}`, baseUrl).toString();
+  const shareLinkUrl = new URL(`/s/${publicSlug}`, baseUrl);
+  shareLinkUrl.searchParams.set("st", shareToken);
+
+  return shareLinkUrl.toString();
 };
 
 export type ShareTokenResolutionSource =
@@ -338,6 +377,7 @@ export const resolveBarbershopByShareToken = async (shareToken: string) => {
 
 export const getBarbershopsByServiceName = async (serviceName: string) => {
   const barbershops = await prisma.barbershop.findMany({
+    select: BARBERSHOP_LIST_ITEM_SELECT,
     where: {
       exclusiveBarber: false,
       services: {
@@ -351,7 +391,7 @@ export const getBarbershopsByServiceName = async (serviceName: string) => {
       },
     },
   });
-  return barbershops;
+  return barbershops.map(mapBarbershopListItem);
 };
 
 export const getAdminBarbershopByUserId = async (userId: string) => {

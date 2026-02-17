@@ -1,8 +1,10 @@
 import BarbershopDetails from "@/components/barbershop-details";
 import Footer from "@/components/footer";
 import Header from "@/components/header";
+import { Button } from "@/components/ui/button";
 import { getBarbershopBySlug } from "@/data/barbershops";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 const BarbershopBySlugPage = async ({ params }: PageProps<"/b/[slug]">) => {
   const { slug } = await params;
@@ -14,7 +16,7 @@ const BarbershopBySlugPage = async ({ params }: PageProps<"/b/[slug]">) => {
 
   return (
     <div>
-      <Header homeHref={`/b/${barbershop.slug}`} />
+      <Header homeHref="/home" />
       <BarbershopDetails barbershop={barbershop} showBackButton={false} />
       <Footer />
     </div>

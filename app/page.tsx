@@ -21,18 +21,26 @@ import {
   PageSectionScroller,
   PageSectionTitle,
 } from "@/components/ui/page";
-import { BARBERSHOP_CONTEXT_COOKIE_NAME } from "@/lib/barbershop-context";
+import {
+  BARBERSHOP_CONTEXT_COOKIE_NAME,
+  BARBERSHOP_FORCE_GENERAL_HOME_COOKIE_NAME,
+} from "@/lib/barbershop-context";
 import { requireAuthenticatedUser } from "@/lib/rbac";
 import banner from "@/public/banner.png";
 
 export default async function Home() {
   const user = await requireAuthenticatedUser();
   const cookieStore = await cookies();
+  const forceGeneralHomeCookieValue =
+    cookieStore.get(BARBERSHOP_FORCE_GENERAL_HOME_COOKIE_NAME)?.value ?? "";
+  const shouldForceGeneralHome = forceGeneralHomeCookieValue === "1";
   const barbershopContextIdFromCookie =
-    cookieStore.get(BARBERSHOP_CONTEXT_COOKIE_NAME)?.value ?? null;
-  const fallbackBarbershopContextId = await getPreferredBarbershopIdForUser(
-    user.id,
-  );
+    shouldForceGeneralHome
+      ? null
+      : cookieStore.get(BARBERSHOP_CONTEXT_COOKIE_NAME)?.value ?? null;
+  const fallbackBarbershopContextId = shouldForceGeneralHome
+    ? null
+    : await getPreferredBarbershopIdForUser(user.id);
   const barbershopContextId =
     barbershopContextIdFromCookie ?? fallbackBarbershopContextId;
 
@@ -44,7 +52,7 @@ export default async function Home() {
     return (
       <div>
         <Header
-          homeHref="/"
+          homeHref="/home"
           chatHref={`/chat?barbershopPublicSlug=${encodeURIComponent(exclusiveBarbershop.slug)}`}
         />
         <ExclusiveBarbershopLanding barbershop={exclusiveBarbershop} />
