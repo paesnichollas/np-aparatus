@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
-import { normalizePhoneToE164 } from "@/lib/phone-normalization";
+import { toE164BR } from "@/lib/phone";
 import {
   EMAIL_IN_USE_CODE,
   PROFILE_INCOMPLETE_FIELDS_CODE,
@@ -103,7 +103,7 @@ export async function PATCH(request: Request) {
   const normalizedPhoneInput = parsedRequest.data.phone?.trim();
   const hasPhoneInput = Boolean(normalizedPhoneInput);
   const normalizedPhoneFromInput = normalizedPhoneInput
-    ? normalizePhoneToE164(normalizedPhoneInput)
+    ? toE164BR(normalizedPhoneInput)
     : null;
   const nextContactEmail =
     normalizedContactEmailInput && normalizedContactEmailInput.length > 0
@@ -163,7 +163,7 @@ export async function PATCH(request: Request) {
   });
 
   const normalizedCurrentPhone = currentUser.phone
-    ? normalizePhoneToE164(currentUser.phone)
+    ? toE164BR(currentUser.phone)
     : null;
   const nextPhone = hasPhoneInput ? normalizedPhoneFromInput : normalizedCurrentPhone;
   const nextName = normalizedNameInput ?? currentUser.name.trim().replace(/\s+/g, " ");

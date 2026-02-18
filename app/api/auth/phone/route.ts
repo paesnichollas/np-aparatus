@@ -9,7 +9,7 @@ import {
   isValidPhoneNumber,
   normalizePhoneNumber,
 } from "@/lib/auth-phone";
-import { normalizePhoneToE164 } from "@/lib/phone-normalization";
+import { toE164BR } from "@/lib/phone";
 import { isUserProfileComplete } from "@/lib/profile-completion";
 
 interface PhoneAuthRequestBody {
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
   }
 
   const normalizedPhoneNumber = normalizePhoneNumber(requestBody.phone ?? "");
-  const normalizedPhoneE164 = normalizePhoneToE164(normalizedPhoneNumber);
+  const normalizedPhoneE164 = toE164BR(normalizedPhoneNumber);
 
   if (!isValidPhoneNumber(normalizedPhoneNumber) || !normalizedPhoneE164) {
     return NextResponse.json(

@@ -6,6 +6,7 @@ import {
   BarbershopService,
 } from "@/generated/prisma/client";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 import { formatCurrency } from "@/lib/utils";
 import { Clock3, MapPin, Phone, Scissors, UsersRound } from "lucide-react";
 import Image from "next/image";
@@ -97,6 +98,19 @@ const ExclusiveBarbershopLanding = ({
       openingHour,
     ]),
   );
+  const contactPhones = barbershop.phones
+    .map((phone) => {
+      const normalizedPhone = phone.trim();
+      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
+      const dialPhone = normalizedPhone.startsWith("+")
+        ? `+${normalizedPhone.replace(/\D/g, "")}`
+        : normalizedPhone.replace(/\D/g, "");
+
+      return { displayPhone, dialPhone };
+    })
+    .filter(
+      (phone) => phone.displayPhone.length > 0 && phone.dialPhone.length > 0,
+    );
 
   return (
     <PageContainer>
@@ -310,7 +324,7 @@ const ExclusiveBarbershopLanding = ({
                 const serviceImageUrl = service.imageUrl ?? barbershopImageUrl;
                 const serviceDescription =
                   service.description?.trim() || "Sem descrição.";
-                const firstPhone = barbershop.phones[0];
+                const firstPhone = contactPhones[0]?.dialPhone;
 
                 return (
                   <AccordionItem key={service.id} value={`service-${service.id}`}>
@@ -346,7 +360,7 @@ const ExclusiveBarbershopLanding = ({
                           {firstPhone ? (
                             <Button asChild size="sm" className="rounded-full">
                               <Link
-                                href={`tel:${firstPhone.replace(/[^\d+]/g, "")}`}
+                                href={`tel:${firstPhone}`}
                               >
                                 Ligar agora
                               </Link>
@@ -384,20 +398,20 @@ const ExclusiveBarbershopLanding = ({
           <PageSectionTitle>Contato</PageSectionTitle>
           <Card>
             <CardContent className="space-y-3">
-              {barbershop.phones.length > 0 ? (
-                barbershop.phones.map((phone, index) => (
+              {contactPhones.length > 0 ? (
+                contactPhones.map((phone, index) => (
                   <div
-                    key={`${phone}-${index}`}
+                    key={`${phone.dialPhone}-${index}`}
                     className="flex items-center justify-between gap-3"
                   >
                     <Link
-                      href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+                      href={`tel:${phone.dialPhone}`}
                       className="flex items-center gap-2 text-sm font-medium"
                     >
                       <Phone className="size-4" />
-                      <span>{phone}</span>
+                      <span>{phone.displayPhone}</span>
                     </Link>
-                    <CopyButton text={phone} />
+                    <CopyButton text={phone.displayPhone} />
                   </div>
                 ))
               ) : (

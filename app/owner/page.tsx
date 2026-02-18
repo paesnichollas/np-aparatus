@@ -24,6 +24,7 @@ import { getServicesByBarbershopId } from "@/data/services";
 import { SHOW_CHATBOT_ENTRYPOINTS } from "@/constants/feature-flags";
 import { getBookingStartDate } from "@/lib/booking-calculations";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 import { requireOwnerOrAdmin } from "@/lib/rbac";
 import { BarChart3, MessageCircleMore, Phone } from "lucide-react";
 import { headers } from "next/headers";
@@ -76,6 +77,9 @@ const OwnerPage = async () => {
 
   const services = await getServicesByBarbershopId(barbershop.id);
   const barbershopImageUrl = resolveBarbershopImageUrl(barbershop.imageUrl);
+  const displayPhones = barbershop.phones
+    .map((phone) => formatPhoneBRDisplay(phone))
+    .filter((phone) => phone.length > 0);
   const shareLink = await getBarbershopShareLink(
     barbershop.id,
     getRequestOrigin(requestHeaders),
@@ -127,7 +131,7 @@ const OwnerPage = async () => {
               />
             </div>
             <div className="space-y-2">
-              {barbershop.phones.map((phone, index) => (
+              {displayPhones.map((phone, index) => (
                 <Badge
                   key={`${phone}-${index}`}
                   variant="secondary"

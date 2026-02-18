@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
 import { adminListBarbershops } from "@/data/admin/barbershops";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 
 interface AdminBarbershopsPageProps {
   searchParams: Promise<{
@@ -167,55 +168,61 @@ const AdminBarbershopsPage = async ({
             </TableHeader>
             <TableBody>
               {result.items.length > 0 ? (
-                result.items.map((barbershop) => (
-                  <TableRow key={barbershop.id}>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <p className="font-medium">{barbershop.name}</p>
-                        <p className="text-muted-foreground text-xs">
-                          Slug interno: {barbershop.slug}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          Compartilhamento: {barbershop.publicSlug}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {barbershop.owner
-                        ? `${barbershop.owner.name} (${barbershop.owner.email})`
-                        : "Sem owner"}
-                    </TableCell>
-                    <TableCell>{barbershop.phones.join(", ")}</TableCell>
-                    <TableCell>{barbershop.stripeEnabled ? "Ativo" : "Inativo"}</TableCell>
-                    <TableCell>
-                      {barbershop.exclusiveBarber ? "Sim" : "Nao"}
-                    </TableCell>
-                    <TableCell>
-                      {barbershop.plan === "PRO"
-                        ? `PRO (${barbershop.whatsappEnabled ? "WhatsApp on" : "WhatsApp off"})`
-                        : "BASIC"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={barbershop.isActive ? "secondary" : "destructive"}>
-                        {barbershop.isActive ? "Ativa" : "Inativa"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <BarbershopStatusToggle
-                          barbershopId={barbershop.id}
-                          isActive={barbershop.isActive}
-                        />
-                        <Link
-                          href={`/admin/barbershops/${barbershop.id}`}
-                          className="text-sm font-medium underline-offset-4 hover:underline"
-                        >
-                          Ver detalhes
-                        </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                result.items.map((barbershop) => {
+                  const displayPhones = barbershop.phones
+                    .map((phone) => formatPhoneBRDisplay(phone))
+                    .filter((phone) => phone.length > 0);
+
+                  return (
+                    <TableRow key={barbershop.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="font-medium">{barbershop.name}</p>
+                          <p className="text-muted-foreground text-xs">
+                            Slug interno: {barbershop.slug}
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            Compartilhamento: {barbershop.publicSlug}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {barbershop.owner
+                          ? `${barbershop.owner.name} (${barbershop.owner.email})`
+                          : "Sem owner"}
+                      </TableCell>
+                      <TableCell>{displayPhones.join(", ")}</TableCell>
+                      <TableCell>{barbershop.stripeEnabled ? "Ativo" : "Inativo"}</TableCell>
+                      <TableCell>
+                        {barbershop.exclusiveBarber ? "Sim" : "Nao"}
+                      </TableCell>
+                      <TableCell>
+                        {barbershop.plan === "PRO"
+                          ? `PRO (${barbershop.whatsappEnabled ? "WhatsApp on" : "WhatsApp off"})`
+                          : "BASIC"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={barbershop.isActive ? "secondary" : "destructive"}>
+                          {barbershop.isActive ? "Ativa" : "Inativa"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <BarbershopStatusToggle
+                            barbershopId={barbershop.id}
+                            isActive={barbershop.isActive}
+                          />
+                          <Link
+                            href={`/admin/barbershops/${barbershop.id}`}
+                            className="text-sm font-medium underline-offset-4 hover:underline"
+                          >
+                            Ver detalhes
+                          </Link>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={8} className="text-muted-foreground text-sm">

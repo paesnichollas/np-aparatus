@@ -2,7 +2,7 @@
 
 import { Prisma } from "@/generated/prisma/client";
 import { protectedActionClient } from "@/lib/action-client";
-import { normalizePhoneToE164 } from "@/lib/phone-normalization";
+import { toE164BR } from "@/lib/phone";
 import { isUserProfileComplete } from "@/lib/profile-completion";
 import { prisma } from "@/lib/prisma";
 import { resolveAndPersistUserProvider } from "@/lib/user-provider-server";
@@ -86,10 +86,10 @@ export const updateMyProfile = protectedActionClient
     const hasPhoneInput = parsedInput.phone !== undefined;
     const normalizedPhoneInput = parsedInput.phone?.trim() ?? "";
     const normalizedPhoneFromInput = normalizedPhoneInput
-      ? normalizePhoneToE164(normalizedPhoneInput)
+      ? toE164BR(normalizedPhoneInput)
       : null;
     const normalizedCurrentPhone = currentUser.phone
-      ? normalizePhoneToE164(currentUser.phone)
+      ? toE164BR(currentUser.phone)
       : null;
     const nextPhone = hasPhoneInput ? normalizedPhoneFromInput : normalizedCurrentPhone;
 

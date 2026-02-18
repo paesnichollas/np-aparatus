@@ -5,7 +5,8 @@ import {
   getBookingDisplayStatusLabel,
   getBookingDisplayStatusVariant,
 } from "@/lib/booking-status";
-import { formatCurrency, formatPhoneBR } from "@/lib/utils";
+import { formatPhoneBRDisplay } from "@/lib/phone";
+import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarDays, Phone, Scissors, UserRound } from "lucide-react";
@@ -86,7 +87,7 @@ const OwnerBookingCard = ({ booking }: OwnerBookingCardProps) => {
   });
   const bookingTotalLabel = getBookingTotalLabel(booking.totalPriceInCents);
   const serviceNames = getBookingServiceNames(booking);
-  const bookingUserPhone = booking.user.phone?.trim();
+  const bookingUserPhone = formatPhoneBRDisplay(booking.user.phone?.trim());
 
   return (
     <Card>
@@ -116,10 +117,10 @@ const OwnerBookingCard = ({ booking }: OwnerBookingCardProps) => {
             <UserRound className="size-4" />
             {booking.user.name}
           </p>
-          {bookingUserPhone ? (
+          {bookingUserPhone.length > 0 ? (
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <Phone className="size-4" />
-              {formatPhoneBR(bookingUserPhone)}
+              {bookingUserPhone}
             </p>
           ) : null}
         </div>

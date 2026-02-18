@@ -12,6 +12,13 @@ import {
 import ImageUploader from "@/components/ui/image-uploader";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  BR_PHONE_MAX_LENGTH,
+  BR_PHONE_MIN_LENGTH,
+  formatPhoneBRDisplay,
+  formatPhoneListBRInput,
+  parsePhoneListToDigits,
+} from "@/lib/phone";
 import { Copy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
@@ -38,13 +45,19 @@ const normalizeSlugValue = (value: string) =>
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const parsePhonesInput = (value: string) =>
-  value
-    .split(/[\n,;]+/)
-    .map((phone) => phone.trim())
-    .filter(Boolean);
+const formatPhonesInput = (phones: string[]) =>
+  phones
+    .map((phone) => {
+      const normalizedPhone = phone.trim();
+      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
+      return displayPhone || normalizedPhone;
+    })
+    .filter(Boolean)
+    .join(", ");
 
-const formatPhonesInput = (phones: string[]) => phones.join(", ");
+const isValidPhoneDigits = (phone: string) => {
+  return phone.length >= BR_PHONE_MIN_LENGTH && phone.length <= BR_PHONE_MAX_LENGTH;
+};
 
 const BrandingSettingsForm = ({
   barbershopId,
@@ -93,12 +106,21 @@ const BrandingSettingsForm = ({
       return;
     }
 
-    const parsedPhones = parsePhonesInput(phonesInput);
+    const parsedPhonesDigits = parsePhoneListToDigits(phonesInput);
 
-    if (parsedPhones.length === 0) {
+    if (parsedPhonesDigits.length === 0) {
       toast.error("Informe pelo menos um telefone de contato.");
       return;
     }
+
+    if (parsedPhonesDigits.some((phoneDigits) => !isValidPhoneDigits(phoneDigits))) {
+      toast.error("Informe telefones validos com DDD (10 ou 11 digitos).");
+      return;
+    }
+
+    const parsedPhones = parsedPhonesDigits
+      .map((phoneDigits) => formatPhoneBRDisplay(phoneDigits))
+      .filter((phone) => phone.length > 0);
 
     if (!backgroundImageUrl?.trim()) {
       toast.error("Envie uma imagem de banner para a barbearia.");
@@ -192,7 +214,9 @@ const BrandingSettingsForm = ({
             <Input
               id="barbershop-phones"
               value={phonesInput}
-              onChange={(event) => setPhonesInput(event.target.value)}
+              onChange={(event) =>
+                setPhonesInput(formatPhoneListBRInput(event.target.value))
+              }
               placeholder="(11) 99999-9999, (11) 98888-7777"
               disabled={isFormBusy}
             />

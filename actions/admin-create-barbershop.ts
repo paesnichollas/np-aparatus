@@ -23,7 +23,7 @@ const inputSchema = z.object({
   slug: z.string().trim().min(3).max(80).regex(slugRegex).optional(),
   exclusiveBarber: z.boolean(),
   stripeEnabled: z.boolean(),
-  ownerId: z.union([z.string().trim().uuid("OwnerID invalido."), z.null()]).optional(),
+  ownerId: z.union([z.string().trim().min(1, "OwnerID invalido."), z.null()]).optional(),
   plan: z.enum(["BASIC", "PRO"]),
   whatsappProvider: z.enum(["NONE", "TWILIO"]),
   whatsappFrom: z.union([z.string().trim().max(60), z.null()]).optional(),

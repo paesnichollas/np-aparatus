@@ -1,5 +1,6 @@
 import { Barber, Barbershop, BarbershopService } from "@/generated/prisma/client";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 import { Smartphone } from "lucide-react";
 import Image from "next/image";
 import BackButton from "@/app/barbershops/[id]/_components/back-button";
@@ -23,6 +24,9 @@ const BarbershopDetails = ({
   showBackButton = true,
 }: BarbershopDetailsProps) => {
   const barbershopImageUrl = resolveBarbershopImageUrl(barbershop.imageUrl);
+  const displayPhones = barbershop.phones
+    .map((phone) => formatPhoneBRDisplay(phone))
+    .filter((phone) => phone.length > 0);
 
   return (
     <>
@@ -105,7 +109,7 @@ const BarbershopDetails = ({
 
         <div className="flex flex-col gap-3 px-5">
           <PageSectionTitle>Contato</PageSectionTitle>
-          {barbershop.phones.map((phone, index) => (
+          {displayPhones.map((phone, index) => (
             <div key={`${phone}-${index}`} className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Smartphone className="size-6" />

@@ -17,8 +17,8 @@ import { toast } from "sonner";
 
 import { type UserRole } from "@/generated/prisma/client";
 import { authClient } from "@/lib/auth-client";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 import { type UserProvider } from "@/lib/user-provider";
-import { formatPhoneBR } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
@@ -65,7 +65,7 @@ const MenuSheet = ({
   };
 
   const displayPhone = userSummary?.phone
-    ? formatPhoneBR(userSummary.phone) || null
+    ? formatPhoneBRDisplay(userSummary.phone) || null
     : null;
   const displayEmail =
     userSummary?.provider === "phone"

@@ -29,6 +29,7 @@ import { cancelBooking } from "@/actions/cancel-booking";
 import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
+import { formatPhoneBRDisplay } from "@/lib/phone";
 
 interface BookingInfoSheetProps {
   booking: BookingWithRelations;
@@ -61,6 +62,9 @@ const BookingInfoSheet = ({ booking, onClose }: BookingInfoSheetProps) => {
       return accumulator + service.priceInCents;
     }, 0);
   const totalDurationMinutes = getBookingDurationMinutes(booking);
+  const displayPhones = booking.barbershop.phones
+    .map((phone) => formatPhoneBRDisplay(phone))
+    .filter((phone) => phone.length > 0);
 
   const handleCancelBooking = async () => {
     const result = await executeCancelBooking({ bookingId: booking.id });
@@ -130,9 +134,9 @@ const BookingInfoSheet = ({ booking, onClose }: BookingInfoSheetProps) => {
           />
         </div>
 
-        {booking.barbershop.phones.length > 0 && (
+        {displayPhones.length > 0 && (
           <div className="flex flex-col gap-3">
-            {booking.barbershop.phones.map((phone, index) => (
+            {displayPhones.map((phone, index) => (
               <div
                 key={`${phone}-${index}`}
                 className="flex items-center justify-between"

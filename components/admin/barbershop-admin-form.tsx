@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  BR_PHONE_MAX_LENGTH,
+  BR_PHONE_MIN_LENGTH,
+  formatPhoneBRDisplay,
+  formatPhoneListBRInput,
+  parsePhoneListToDigits,
+} from "@/lib/phone";
 import { normalizePublicSlug } from "@/lib/public-slug";
 
 type FormBarbershop = {
@@ -49,14 +56,20 @@ interface BarbershopAdminFormProps {
   barbershop?: FormBarbershop;
 }
 
-const parsePhonesInput = (value: string) => {
-  return value
-    .split(/[\n,;]+/)
-    .map((phone) => phone.trim())
-    .filter(Boolean);
+const formatPhonesInput = (phones: string[]) => {
+  return phones
+    .map((phone) => {
+      const normalizedPhone = phone.trim();
+      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
+      return displayPhone || normalizedPhone;
+    })
+    .filter(Boolean)
+    .join(", ");
 };
 
-const formatPhonesInput = (phones: string[]) => phones.join(", ");
+const isValidPhoneDigits = (phone: string) => {
+  return phone.length >= BR_PHONE_MIN_LENGTH && phone.length <= BR_PHONE_MAX_LENGTH;
+};
 
 const getValidationError = (validationErrors: unknown) => {
   const getFirstErrorFromNode = (value: unknown): string | null => {
@@ -150,17 +163,26 @@ const BarbershopAdminForm = ({ mode, barbershop }: BarbershopAdminFormProps) => 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const parsedPhones = parsePhonesInput(phonesText);
+    const parsedPhonesDigits = parsePhoneListToDigits(phonesText);
 
     if (!normalizedSlug) {
       toast.error("Informe um slug valido.");
       return;
     }
 
-    if (parsedPhones.length === 0) {
+    if (parsedPhonesDigits.length === 0) {
       toast.error("Informe pelo menos um telefone.");
       return;
     }
+
+    if (parsedPhonesDigits.some((phoneDigits) => !isValidPhoneDigits(phoneDigits))) {
+      toast.error("Informe telefones validos com DDD (10 ou 11 digitos).");
+      return;
+    }
+
+    const parsedPhones = parsedPhonesDigits
+      .map((phoneDigits) => formatPhoneBRDisplay(phoneDigits))
+      .filter((phone) => phone.length > 0);
 
     const payload = {
       name: name.trim(),
@@ -307,7 +329,7 @@ const BarbershopAdminForm = ({ mode, barbershop }: BarbershopAdminFormProps) => 
         <Input
           id="admin-barbershop-phones"
           value={phonesText}
-          onChange={(event) => setPhonesText(event.target.value)}
+          onChange={(event) => setPhonesText(formatPhoneListBRInput(event.target.value))}
           disabled={isSubmitting}
           placeholder="(11) 99999-9999, (11) 98888-7777"
         />
@@ -371,7 +393,7 @@ const BarbershopAdminForm = ({ mode, barbershop }: BarbershopAdminFormProps) => 
           value={ownerIdInput}
           onChange={(event) => setOwnerIdInput(event.target.value)}
           disabled={isSubmitting}
-          placeholder="UUID do owner (vazio remove owner)"
+          placeholder="ID do owner (vazio remove owner)"
         />
         {isEditMode ? (
           <p className="text-muted-foreground text-xs">Owner atual: {currentOwnerLabel}</p>
