@@ -205,12 +205,12 @@ const OwnersManagementTable = ({
     }
 
     if (result.serverError || !result.data) {
-      toast.error("Falha ao desabilitar acesso da barbearia.");
+      toast.error("Falha ao desativar a barbearia.");
       setCurrentMutationUserId(null);
       return;
     }
 
-    toast.success("Acesso da barbearia desabilitado.");
+    toast.success("Barbearia desativada.");
     setCurrentMutationUserId(null);
     router.refresh();
   };
@@ -237,12 +237,12 @@ const OwnersManagementTable = ({
     }
 
     if (result.serverError || !result.data) {
-      toast.error("Falha ao reativar acesso da barbearia.");
+      toast.error("Falha ao ativar a barbearia.");
       setCurrentMutationUserId(null);
       return;
     }
 
-    toast.success("Acesso da barbearia reativado.");
+    toast.success("Barbearia ativada.");
     setCurrentMutationUserId(null);
     router.refresh();
   };
@@ -342,21 +342,21 @@ const OwnersManagementTable = ({
                               disabled={isCurrentRowBusy}
                             >
                               {ownedBarbershop.isActive
-                                ? "Desabilitar acesso"
-                                : "Reativar acesso"}
+                                ? "Desativar barbearia"
+                                : "Ativar barbearia"}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>
                                 {ownedBarbershop.isActive
-                                  ? "Desabilitar acesso da barbearia?"
-                                  : "Reativar acesso da barbearia?"}
+                                  ? "Desativar barbearia?"
+                                  : "Ativar barbearia?"}
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 {ownedBarbershop.isActive
-                                  ? "Esta acao desabilita a barbearia, o owner e todos os clientes vinculados, alem de encerrar sessoes ativas."
-                                  : "Esta acao reativa a barbearia, o owner e todos os clientes vinculados."}
+                                  ? "A barbearia deixa de aparecer para clientes e owners em rotas/listagens publicas."
+                                  : "A barbearia volta a aparecer para clientes e owners em rotas/listagens publicas."}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

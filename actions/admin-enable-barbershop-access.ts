@@ -22,6 +22,10 @@ export const adminEnableBarbershopAccessAction = protectedActionClient
       revalidatePath("/admin/owners");
       revalidatePath("/admin/barbershops");
       revalidatePath("/");
+      revalidatePath("/barbershops");
+      revalidatePath(`/b/${result.barbershopSlug}`);
+      revalidatePath(`/barbershops/${result.barbershopId}`);
+      revalidatePath(`/exclusive/${result.barbershopId}`);
 
       return result;
     } catch (error) {
@@ -29,7 +33,7 @@ export const adminEnableBarbershopAccessAction = protectedActionClient
         _errors: [
           error instanceof Error
             ? error.message
-            : "Falha ao reativar acesso da barbearia.",
+            : "Falha ao ativar a barbearia.",
         ],
       });
     }

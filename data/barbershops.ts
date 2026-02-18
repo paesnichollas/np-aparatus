@@ -147,6 +147,9 @@ const resolveAvailablePublicSlug = async ({
 
 export const getBarbershops = async () => {
   const barbershops = await prisma.barbershop.findMany({
+    where: {
+      isActive: true,
+    },
     select: BARBERSHOP_LIST_ITEM_SELECT,
   });
   return barbershops.map(mapBarbershopListItem);
@@ -154,6 +157,9 @@ export const getBarbershops = async () => {
 
 export const getPopularBarbershops = async () => {
   const popularBarbershops = await prisma.barbershop.findMany({
+    where: {
+      isActive: true,
+    },
     select: BARBERSHOP_LIST_ITEM_SELECT,
     orderBy: {
       name: "desc",
@@ -163,16 +169,22 @@ export const getPopularBarbershops = async () => {
 };
 
 export const getBarbershopById = async (id: string) => {
-  const barbershop = await prisma.barbershop.findUnique({
-    where: { id },
+  const barbershop = await prisma.barbershop.findFirst({
+    where: {
+      id,
+      isActive: true,
+    },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
   return barbershop;
 };
 
 export const getBarbershopBySlug = async (slug: string) => {
-  const barbershop = await prisma.barbershop.findUnique({
-    where: { slug },
+  const barbershop = await prisma.barbershop.findFirst({
+    where: {
+      slug,
+      isActive: true,
+    },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
   return barbershop;
@@ -187,9 +199,10 @@ export const getExclusiveBarbershopByContextId = async (
     return null;
   }
 
-  const contextBarbershop = await prisma.barbershop.findUnique({
+  const contextBarbershop = await prisma.barbershop.findFirst({
     where: {
       id: normalizedContextBarbershopId,
+      isActive: true,
     },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
@@ -318,9 +331,10 @@ export const getBarbershopByPublicSlug = async (publicSlug: string) => {
     return null;
   }
 
-  const barbershop = await prisma.barbershop.findUnique({
+  const barbershop = await prisma.barbershop.findFirst({
     where: {
       publicSlug: normalizedPublicSlug,
+      isActive: true,
     },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
@@ -344,9 +358,10 @@ export const resolveBarbershopByShareToken = async (shareToken: string) => {
     };
   }
 
-  const byLegacyId = await prisma.barbershop.findUnique({
+  const byLegacyId = await prisma.barbershop.findFirst({
     where: {
       id: normalizedShareToken,
+      isActive: true,
     },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
@@ -358,9 +373,10 @@ export const resolveBarbershopByShareToken = async (shareToken: string) => {
     };
   }
 
-  const byLegacyShareSlug = await prisma.barbershop.findUnique({
+  const byLegacyShareSlug = await prisma.barbershop.findFirst({
     where: {
       shareSlug: normalizedShareToken,
+      isActive: true,
     },
     include: BARBERSHOP_DETAILS_INCLUDE,
   });
@@ -379,6 +395,7 @@ export const getBarbershopsByServiceName = async (serviceName: string) => {
   const barbershops = await prisma.barbershop.findMany({
     select: BARBERSHOP_LIST_ITEM_SELECT,
     where: {
+      isActive: true,
       exclusiveBarber: false,
       services: {
         some: {

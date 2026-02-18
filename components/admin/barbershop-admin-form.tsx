@@ -6,6 +6,8 @@ import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
 import { adminUpdateBarbershopAction } from "@/actions/admin-update-barbershop";
+import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,7 @@ interface BarbershopAdminFormProps {
     phones: string[];
     exclusiveBarber: boolean;
     stripeEnabled: boolean;
+    isActive: boolean;
     publicSlug: string;
     ownerId: string | null;
     plan: "BASIC" | "PRO";
@@ -150,6 +153,19 @@ const BarbershopAdminForm = ({ barbershop }: BarbershopAdminFormProps) => {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={barbershop.isActive ? "secondary" : "destructive"}>
+            {barbershop.isActive ? "Ativa" : "Inativa"}
+          </Badge>
+          <BarbershopStatusToggle
+            barbershopId={barbershop.id}
+            isActive={barbershop.isActive}
+          />
+        </div>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="admin-barbershop-name">Nome</Label>
         <Input

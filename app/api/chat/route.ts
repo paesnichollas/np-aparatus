@@ -229,6 +229,9 @@ export const POST = async (request: Request) => {
 
           if (!name?.trim()) {
             return prisma.barbershop.findMany({
+              where: {
+                isActive: true,
+              },
               include: {
                 services: {
                   where: {
@@ -244,6 +247,7 @@ export const POST = async (request: Request) => {
 
           return prisma.barbershop.findMany({
             where: {
+              isActive: true,
               name: {
                 contains: name,
                 mode: "insensitive",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -17,12 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
 import { adminListBarbershops } from "@/data/admin/barbershops";
 
 interface AdminBarbershopsPageProps {
   searchParams: Promise<{
     q?: string | string[];
     page?: string | string[];
+    status?: string | string[];
   }>;
 }
 
@@ -45,16 +48,30 @@ const parsePageParam = (value: string | string[] | undefined) => {
   return Math.floor(parsedPage);
 };
 
+const statusFilterValues = new Set(["ALL", "ACTIVE", "INACTIVE"]);
+
+const parseStatusFilter = (value: string | string[] | undefined) => {
+  const normalizedValue = parseStringParam(value).toUpperCase();
+
+  if (statusFilterValues.has(normalizedValue)) {
+    return normalizedValue as "ALL" | "ACTIVE" | "INACTIVE";
+  }
+
+  return "ALL";
+};
+
 const AdminBarbershopsPage = async ({
   searchParams,
 }: AdminBarbershopsPageProps) => {
   const resolvedSearchParams = await searchParams;
   const search = parseStringParam(resolvedSearchParams.q);
   const page = parsePageParam(resolvedSearchParams.page);
+  const status = parseStatusFilter(resolvedSearchParams.status);
 
   const result = await adminListBarbershops({
     search,
     page,
+    status,
   });
 
   const createPageHref = (nextPage: number) => {
@@ -62,6 +79,10 @@ const AdminBarbershopsPage = async ({
 
     if (search) {
       params.set("q", search);
+    }
+
+    if (status !== "ALL") {
+      params.set("status", status);
     }
 
     params.set("page", String(nextPage));
@@ -85,6 +106,15 @@ const AdminBarbershopsPage = async ({
               placeholder="Buscar por nome, slug, public slug ou owner"
               className="w-full md:max-w-md"
             />
+            <select
+              name="status"
+              defaultValue={status}
+              className="bg-background border-input h-9 rounded-md border px-3 text-sm"
+            >
+              <option value="ALL">Todas</option>
+              <option value="ACTIVE">Ativas</option>
+              <option value="INACTIVE">Inativas</option>
+            </select>
             <Button type="submit">Buscar</Button>
           </form>
 
@@ -97,6 +127,7 @@ const AdminBarbershopsPage = async ({
                 <TableHead>Stripe</TableHead>
                 <TableHead>Exclusiva</TableHead>
                 <TableHead>Plano</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Acoes</TableHead>
               </TableRow>
             </TableHeader>
@@ -131,18 +162,29 @@ const AdminBarbershopsPage = async ({
                         : "BASIC"}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/admin/barbershops/${barbershop.id}`}
-                        className="text-sm font-medium underline-offset-4 hover:underline"
-                      >
-                        Ver detalhes
-                      </Link>
+                      <Badge variant={barbershop.isActive ? "secondary" : "destructive"}>
+                        {barbershop.isActive ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <BarbershopStatusToggle
+                          barbershopId={barbershop.id}
+                          isActive={barbershop.isActive}
+                        />
+                        <Link
+                          href={`/admin/barbershops/${barbershop.id}`}
+                          className="text-sm font-medium underline-offset-4 hover:underline"
+                        >
+                          Ver detalhes
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-muted-foreground text-sm">
+                  <TableCell colSpan={8} className="text-muted-foreground text-sm">
                     Nenhuma barbearia encontrada.
                   </TableCell>
                 </TableRow>

@@ -36,11 +36,12 @@ export const linkCustomerToBarbershop = async ({
       },
       select: {
         id: true,
+        isActive: true,
       },
     }),
   ]);
 
-  if (!user || !barbershop) {
+  if (!user || !barbershop || !barbershop.isActive) {
     return {
       linked: false as const,
       barbershopId: null,

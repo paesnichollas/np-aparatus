@@ -48,6 +48,7 @@ interface AdminListBarbershopsInput {
   search?: string;
   page?: number;
   pageSize?: number;
+  status?: "ALL" | "ACTIVE" | "INACTIVE";
 }
 
 export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}) => {
@@ -56,51 +57,56 @@ export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}
   const page = normalizePage(input.page);
   const pageSize = normalizePageSize(input.pageSize);
   const search = normalizeSearch(input.search);
+  const status = input.status ?? "ALL";
 
-  const where: Prisma.BarbershopWhereInput = search
-    ? {
-        OR: [
-          {
-            name: {
-              contains: search,
-              mode: "insensitive",
-            },
-          },
-          {
-            slug: {
-              contains: search,
-              mode: "insensitive",
-            },
-          },
-          {
-            publicSlug: {
-              contains: search,
-              mode: "insensitive",
-            },
-          },
-          {
-            owner: {
-              is: {
-                OR: [
-                  {
-                    name: {
-                      contains: search,
-                      mode: "insensitive",
-                    },
-                  },
-                  {
-                    email: {
-                      contains: search,
-                      mode: "insensitive",
-                    },
-                  },
-                ],
+  const where: Prisma.BarbershopWhereInput = {
+    ...(status === "ACTIVE" ? { isActive: true } : {}),
+    ...(status === "INACTIVE" ? { isActive: false } : {}),
+    ...(search
+      ? {
+          OR: [
+            {
+              name: {
+                contains: search,
+                mode: "insensitive",
               },
             },
-          },
-        ],
-      }
-    : {};
+            {
+              slug: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              publicSlug: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              owner: {
+                is: {
+                  OR: [
+                    {
+                      name: {
+                        contains: search,
+                        mode: "insensitive",
+                      },
+                    },
+                    {
+                      email: {
+                        contains: search,
+                        mode: "insensitive",
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
 
   const [totalCount, items] = await Promise.all([
     prisma.barbershop.count({ where }),
@@ -120,6 +126,7 @@ export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}
         phones: true,
         exclusiveBarber: true,
         stripeEnabled: true,
+        isActive: true,
         plan: true,
         whatsappProvider: true,
         whatsappEnabled: true,
@@ -166,6 +173,7 @@ export const adminGetBarbershop = async (barbershopId: string) => {
       phones: true,
       exclusiveBarber: true,
       stripeEnabled: true,
+      isActive: true,
       plan: true,
       whatsappProvider: true,
       whatsappFrom: true,
@@ -290,6 +298,7 @@ export const adminUpdateBarbershop = async ({
       phones: true,
       exclusiveBarber: true,
       stripeEnabled: true,
+      isActive: true,
       plan: true,
       whatsappProvider: true,
       whatsappFrom: true,
@@ -316,4 +325,52 @@ export const adminUpdateBarbershop = async ({
   await ensureBarbershopPublicSlug(updatedBarbershop.id);
 
   return updatedBarbershop;
+};
+
+interface AdminSetBarbershopActiveInput {
+  barbershopId: string;
+  isActive: boolean;
+}
+
+export const adminSetBarbershopActive = async ({
+  barbershopId,
+  isActive,
+}: AdminSetBarbershopActiveInput) => {
+  await requireAdmin({ onUnauthorized: "throw" });
+
+  const normalizedBarbershopId = barbershopId.trim();
+
+  if (!normalizedBarbershopId) {
+    throw new Error("Barbearia invalida.");
+  }
+
+  const updateResult = await prisma.barbershop.updateMany({
+    where: {
+      id: normalizedBarbershopId,
+    },
+    data: {
+      isActive,
+    },
+  });
+
+  if (updateResult.count === 0) {
+    throw new Error("Barbearia nao encontrada.");
+  }
+
+  const barbershop = await prisma.barbershop.findUnique({
+    where: {
+      id: normalizedBarbershopId,
+    },
+    select: {
+      id: true,
+      slug: true,
+      isActive: true,
+    },
+  });
+
+  if (!barbershop) {
+    throw new Error("Barbearia nao encontrada.");
+  }
+
+  return barbershop;
 };

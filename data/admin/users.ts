@@ -299,7 +299,7 @@ interface AdminToggleBarbershopAccessInput {
   barbershopId: string;
 }
 
-const getLinkedUserIdsByBarbershop = async (
+const getBarbershopById = async (
   tx: Prisma.TransactionClient,
   barbershopId: string,
 ) => {
@@ -309,8 +309,7 @@ const getLinkedUserIdsByBarbershop = async (
     },
     select: {
       id: true,
-      isActive: true,
-      ownerId: true,
+      slug: true,
     },
   });
 
@@ -318,47 +317,7 @@ const getLinkedUserIdsByBarbershop = async (
     throw new Error("Barbearia nao encontrada.");
   }
 
-  const [directCustomers, customerLinks] = await Promise.all([
-    tx.user.findMany({
-      where: {
-        barbershopId,
-        role: "CUSTOMER",
-      },
-      select: {
-        id: true,
-      },
-    }),
-    tx.customerBarbershop.findMany({
-      where: {
-        barbershopId,
-        customer: {
-          role: "CUSTOMER",
-        },
-      },
-      select: {
-        customerId: true,
-      },
-    }),
-  ]);
-
-  const linkedUserIds = new Set<string>();
-
-  if (barbershop.ownerId) {
-    linkedUserIds.add(barbershop.ownerId);
-  }
-
-  for (const customer of directCustomers) {
-    linkedUserIds.add(customer.id);
-  }
-
-  for (const customerLink of customerLinks) {
-    linkedUserIds.add(customerLink.customerId);
-  }
-
-  return {
-    barbershop,
-    linkedUserIds: Array.from(linkedUserIds),
-  };
+  return barbershop;
 };
 
 export const adminDisableBarbershopAccess = async ({
@@ -381,10 +340,7 @@ export const adminDisableBarbershopAccess = async ({
   }
 
   return prisma.$transaction(async (tx) => {
-    const { barbershop, linkedUserIds } = await getLinkedUserIdsByBarbershop(
-      tx,
-      normalizedBarbershopId,
-    );
+    const barbershop = await getBarbershopById(tx, normalizedBarbershopId);
 
     await tx.barbershop.update({
       where: {
@@ -395,35 +351,12 @@ export const adminDisableBarbershopAccess = async ({
       },
     });
 
-    const [updatedUsers, deletedSessions] = await Promise.all([
-      linkedUserIds.length > 0
-        ? tx.user.updateMany({
-            where: {
-              id: {
-                in: linkedUserIds,
-              },
-            },
-            data: {
-              isActive: false,
-            },
-          })
-        : Promise.resolve({ count: 0 }),
-      linkedUserIds.length > 0
-        ? tx.session.deleteMany({
-            where: {
-              userId: {
-                in: linkedUserIds,
-              },
-            },
-          })
-        : Promise.resolve({ count: 0 }),
-    ]);
-
     return {
       barbershopId: barbershop.id,
+      barbershopSlug: barbershop.slug,
       barbershopIsActive: false,
-      affectedUsersCount: updatedUsers.count,
-      revokedSessionsCount: deletedSessions.count,
+      affectedUsersCount: 0,
+      revokedSessionsCount: 0,
     };
   });
 };
@@ -448,10 +381,7 @@ export const adminEnableBarbershopAccess = async ({
   }
 
   return prisma.$transaction(async (tx) => {
-    const { barbershop, linkedUserIds } = await getLinkedUserIdsByBarbershop(
-      tx,
-      normalizedBarbershopId,
-    );
+    const barbershop = await getBarbershopById(tx, normalizedBarbershopId);
 
     await tx.barbershop.update({
       where: {
@@ -462,24 +392,11 @@ export const adminEnableBarbershopAccess = async ({
       },
     });
 
-    const updatedUsers =
-      linkedUserIds.length > 0
-        ? await tx.user.updateMany({
-            where: {
-              id: {
-                in: linkedUserIds,
-              },
-            },
-            data: {
-              isActive: true,
-            },
-          })
-        : { count: 0 };
-
     return {
       barbershopId: barbershop.id,
+      barbershopSlug: barbershop.slug,
       barbershopIsActive: true,
-      affectedUsersCount: updatedUsers.count,
+      affectedUsersCount: 0,
       revokedSessionsCount: 0,
     };
   });
