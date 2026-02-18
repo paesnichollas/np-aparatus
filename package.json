@@ -2,6 +2,7 @@
   "name": "aparatus",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -11,6 +12,15 @@
     "prisma:backfill-public-slugs": "tsx prisma/backfill-public-slugs.ts",
     "check:user-name-phone-duplicates": "tsx prisma/check-user-name-phone-duplicates.ts",
     "postinstall": "prisma generate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.28",
