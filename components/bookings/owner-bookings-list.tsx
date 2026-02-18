@@ -5,7 +5,7 @@ import {
   getBookingDisplayStatusLabel,
   getBookingDisplayStatusVariant,
 } from "@/lib/booking-status";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPhoneBR } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarDays, Phone, Scissors, UserRound } from "lucide-react";
@@ -48,34 +48,6 @@ interface OwnerBookingsListProps {
 interface OwnerBookingCardProps {
   booking: OwnerBookingListItem;
 }
-
-const MAX_PHONE_LENGTH = 11;
-
-const normalizePhoneNumber = (phoneNumber: string) => {
-  return phoneNumber.replace(/\D/g, "");
-};
-
-const formatPhoneBR = (phoneNumber: string) => {
-  const digits = normalizePhoneNumber(phoneNumber).slice(0, MAX_PHONE_LENGTH);
-
-  if (digits.length === 0) {
-    return "";
-  }
-
-  if (digits.length <= 2) {
-    return `(${digits}`;
-  }
-
-  if (digits.length <= 6) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  }
-
-  if (digits.length <= 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  }
-
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-};
 
 const getBookingTotalLabel = (totalPriceInCents: number | null) => {
   if (typeof totalPriceInCents === "number") {

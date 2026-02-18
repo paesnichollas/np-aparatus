@@ -1,6 +1,6 @@
 "use server";
 
-import { protectedActionClient } from "@/lib/action-client";
+import { criticalActionClient } from "@/lib/action-client";
 import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
 import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
 import {
@@ -92,7 +92,7 @@ const getAppBaseUrl = async () => {
   return parseAbsoluteHttpUrl(`${protocol}://${host}`);
 };
 
-export const createBookingCheckoutSession = protectedActionClient
+export const createBookingCheckoutSession = criticalActionClient
   .inputSchema(inputSchema)
   .action(
     async ({

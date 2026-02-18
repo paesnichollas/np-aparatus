@@ -4,6 +4,7 @@ import ExclusiveHomeCustomizationCard from "@/components/owner/exclusive-home-cu
 import PaymentSettingsForm from "@/components/owner/payment-settings-form";
 import ScheduleSettingsForm from "@/components/owner/schedule-settings-form";
 import ServicesManagementCard from "@/components/owner/services-management-card";
+import WhatsAppAutomationSettingsCard from "@/components/owner/whatsapp-automation-settings-card";
 import OwnerBookingsList from "@/components/bookings/owner-bookings-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,19 @@ const OwnerPage = async () => {
         <PaymentSettingsForm
           barbershopId={barbershop.id}
           stripeEnabled={barbershop.stripeEnabled}
+        />
+        <WhatsAppAutomationSettingsCard
+          plan={barbershop.plan}
+          initialSettings={
+            barbershop.whatsappSettings
+              ? {
+                  sendBookingConfirmation:
+                    barbershop.whatsappSettings.sendBookingConfirmation,
+                  sendReminder24h: barbershop.whatsappSettings.sendReminder24h,
+                  sendReminder1h: barbershop.whatsappSettings.sendReminder1h,
+                }
+              : null
+          }
         />
         <ScheduleSettingsForm
           barbershopId={barbershop.id}

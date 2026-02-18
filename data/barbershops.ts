@@ -604,6 +604,14 @@ export const getAdminBarbershopByUserId = async (userId: string) => {
           dayOfWeek: "asc",
         },
       },
+      whatsappSettings: {
+        select: {
+          sendBookingConfirmation: true,
+          sendReminder24h: true,
+          sendReminder1h: true,
+          updatedAt: true,
+        },
+      },
       bookings: {
         where: {
           OR: [

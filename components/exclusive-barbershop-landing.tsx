@@ -151,6 +151,13 @@ const ExclusiveBarbershopLanding = ({
               <Button asChild variant="secondary" className="rounded-full">
                 <Link href="#contato">Contato Rápido</Link>
               </Button>
+              {/* <Button
+                asChild
+                variant="ghost"
+                className="rounded-full text-primary-foreground"
+              >
+                <Link href="/home">Voltar para inicio</Link>
+              </Button> */}
             </div>
           </div>
         </div>
@@ -405,3 +412,4 @@ const ExclusiveBarbershopLanding = ({
 };
 
 export default ExclusiveBarbershopLanding;
+

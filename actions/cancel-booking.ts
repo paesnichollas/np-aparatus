@@ -72,10 +72,9 @@ export const cancelBooking = protectedActionClient
         cancelledAt: new Date(),
       },
     });
-    
-      await cancelPendingBookingNotificationJobs(bookingId, "booking_canceled");
-      revalidateBookingSurfaces();
+    await cancelPendingBookingNotificationJobs(bookingId, "booking_canceled");
+    revalidateBookingSurfaces();
 
-      return cancelledBooking;
+    return cancelledBooking;
 
   });

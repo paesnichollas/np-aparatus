@@ -28,6 +28,10 @@ model Barbershop {
   logoUrl                String?
   exclusiveBarber        Boolean                 @default(false)
   phones                 String[]
+  plan                   BarbershopPlan          @default(BASIC)
+  whatsappProvider       WhatsAppProvider        @default(NONE)
+  whatsappFrom           String?
+  whatsappEnabled        Boolean                 @default(false)
   bookingIntervalMinutes Int                     @default(30)
   stripeEnabled          Boolean                 @default(true)
   isActive               Boolean                 @default(true)
@@ -40,6 +44,8 @@ model Barbershop {
   openingHours           BarbershopOpeningHours[]
   customerBarbershops    CustomerBarbershop[]
   currentUsers           User[]                  @relation("CurrentBarbershopContext")
+  whatsappSettings       BarbershopWhatsAppSettings?
+  notificationJobs       NotificationJob[]
 
 }
 
@@ -112,6 +118,7 @@ model Booking {
   cancelledAt    DateTime?         @db.Timestamptz()
   createdAt      DateTime          @default(now()) @db.Timestamptz()
   updatedAt      DateTime          @updatedAt @db.Timestamptz()
+  notificationJobs NotificationJob[]
 
   @@index([barberId])
   @@index([startAt])
@@ -130,6 +137,40 @@ model BookingService {
   @@index([serviceId])
 }
 
+model BarbershopWhatsAppSettings {
+  id                      String     @id @default(uuid())
+  barbershopId            String     @unique
+  sendBookingConfirmation Boolean    @default(true)
+  sendReminder24h         Boolean    @default(true)
+  sendReminder1h          Boolean    @default(true)
+  createdAt               DateTime   @default(now()) @db.Timestamptz()
+  updatedAt               DateTime   @updatedAt @db.Timestamptz()
+  barbershop              Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+}
+
+model NotificationJob {
+  id           String                @id @default(uuid())
+  barbershopId String
+  bookingId    String
+  type         NotificationJobType
+  scheduledAt  DateTime              @db.Timestamptz()
+  status       NotificationJobStatus @default(PENDING)
+  attempts     Int                   @default(0)
+  lastError    String?
+  sentAt       DateTime?             @db.Timestamptz()
+  canceledAt   DateTime?             @db.Timestamptz()
+  cancelReason String?
+  createdAt    DateTime              @default(now()) @db.Timestamptz()
+  updatedAt    DateTime              @updatedAt @db.Timestamptz()
+  barbershop   Barbershop            @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  booking      Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([bookingId])
+  @@index([barbershopId])
+  @@unique([bookingId, type])
+}
+
 enum PaymentMethod {
   STRIPE
   IN_PERSON
@@ -139,6 +180,30 @@ enum PaymentStatus {
   PENDING
   PAID
   FAILED
+}
+
+enum BarbershopPlan {
+  BASIC
+  PRO
+}
+
+enum WhatsAppProvider {
+  NONE
+  TWILIO
+}
+
+enum NotificationJobType {
+  BOOKING_CONFIRM
+  REMINDER_24H
+  REMINDER_1H
+}
+
+enum NotificationJobStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  CANCELED
 }
 
 enum UserRole {
@@ -151,7 +216,12 @@ model User {
   id                 String                @id
   name               String
   email              String
+  provider           String                @default("credentials")
+  contactEmail       String?               @unique
   phone              String?               @unique
+  phoneVerified      Boolean               @default(false)
+  phoneVerifiedAt    DateTime?
+  profileCompleted   Boolean               @default(false)
   emailVerified      Boolean               @default(false)
   image              String?
   role               UserRole              @default(CUSTOMER)

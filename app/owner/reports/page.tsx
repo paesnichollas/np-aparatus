@@ -14,11 +14,8 @@ import { getOwnerBarbershopIdByUserId } from "@/data/barbershops";
 import { isAdmin, requireOwnerOrAdmin } from "@/lib/rbac";
 import Link from "next/link";
 
-type ReportRange = "WEEK" | "MONTH";
-
 interface OwnerReportsPageProps {
   searchParams: Promise<{
-    range?: string | string[];
     barbershopId?: string | string[];
   }>;
 }
@@ -31,20 +28,9 @@ const parseStringParam = (value: string | string[] | undefined) => {
   return Array.isArray(value) ? value[0] ?? "" : value;
 };
 
-const parseRangeParam = (value: string | string[] | undefined): ReportRange => {
-  const normalizedValue = parseStringParam(value).toUpperCase();
-
-  if (normalizedValue === "MONTH") {
-    return "MONTH";
-  }
-
-  return "WEEK";
-};
-
 const OwnerReportsPage = async ({ searchParams }: OwnerReportsPageProps) => {
   const user = await requireOwnerOrAdmin();
   const resolvedSearchParams = await searchParams;
-  const initialRange = parseRangeParam(resolvedSearchParams.range);
   const requestedBarbershopId = parseStringParam(resolvedSearchParams.barbershopId);
 
   if (isAdmin(user.role)) {
@@ -85,7 +71,6 @@ const OwnerReportsPage = async ({ searchParams }: OwnerReportsPageProps) => {
       <PageSectionContent>
         <PageSectionTitle>Relatorio</PageSectionTitle>
         <OwnerReportsCard
-          initialRange={initialRange}
           isAdmin
           initialBarbershopId={initialBarbershopId}
           barbershopOptions={barbershopOptions}
@@ -125,7 +110,6 @@ const OwnerReportsPage = async ({ searchParams }: OwnerReportsPageProps) => {
     <PageSectionContent>
       <PageSectionTitle>Relatorio</PageSectionTitle>
       <OwnerReportsCard
-        initialRange={initialRange}
         isAdmin={false}
         initialBarbershopId={ownerBarbershopId}
         barbershopOptions={[]}

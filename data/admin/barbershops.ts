@@ -120,6 +120,9 @@ export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}
         phones: true,
         exclusiveBarber: true,
         stripeEnabled: true,
+        plan: true,
+        whatsappProvider: true,
+        whatsappEnabled: true,
         ownerId: true,
         owner: {
           select: {
@@ -163,6 +166,17 @@ export const adminGetBarbershop = async (barbershopId: string) => {
       phones: true,
       exclusiveBarber: true,
       stripeEnabled: true,
+      plan: true,
+      whatsappProvider: true,
+      whatsappFrom: true,
+      whatsappEnabled: true,
+      whatsappSettings: {
+        select: {
+          sendBookingConfirmation: true,
+          sendReminder24h: true,
+          sendReminder1h: true,
+        },
+      },
       ownerId: true,
       owner: {
         select: {
@@ -276,6 +290,17 @@ export const adminUpdateBarbershop = async ({
       phones: true,
       exclusiveBarber: true,
       stripeEnabled: true,
+      plan: true,
+      whatsappProvider: true,
+      whatsappFrom: true,
+      whatsappEnabled: true,
+      whatsappSettings: {
+        select: {
+          sendBookingConfirmation: true,
+          sendReminder24h: true,
+          sendReminder1h: true,
+        },
+      },
       ownerId: true,
       owner: {
         select: {

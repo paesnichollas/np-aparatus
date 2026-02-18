@@ -1,5 +1,9 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  cancelPendingBookingNotificationJobs,
+  scheduleBookingNotificationJobs,
+} from "@/lib/notifications/notification-jobs";
 import Stripe from "stripe";
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = "2026-01-28.clover";
@@ -107,6 +111,8 @@ const reconcilePendingBooking = async ({
       },
     });
 
+    await scheduleBookingNotificationJobs(booking.id);
+
     logReconciliation("updated-paid", {
       source,
       bookingId: booking.id,
@@ -127,6 +133,8 @@ const reconcilePendingBooking = async ({
         cancelledAt: new Date(),
       },
     });
+
+    await cancelPendingBookingNotificationJobs(booking.id, "payment_failed");
 
     logReconciliation("updated-failed", {
       source,

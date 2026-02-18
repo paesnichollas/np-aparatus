@@ -215,6 +215,64 @@ export const getBookingDateKey = (date: Date) => {
   return getDateKeyFromParts(parts);
 };
 
+export const getBookingCurrentYear = (date = new Date()) => {
+  const dateKey = getBookingDateKey(date);
+  const parsedYear = Number(dateKey.slice(0, 4));
+
+  if (Number.isNaN(parsedYear)) {
+    throw new Error("Nao foi possivel calcular o ano atual no timezone de reservas.");
+  }
+
+  return parsedYear;
+};
+
+export const getBookingCurrentMonth = (date = new Date()) => {
+  const dateKey = getBookingDateKey(date);
+  const parsedMonth = Number(dateKey.slice(5, 7));
+
+  if (Number.isNaN(parsedMonth)) {
+    throw new Error("Nao foi possivel calcular o mes atual no timezone de reservas.");
+  }
+
+  return parsedMonth;
+};
+
+export const getBookingYearBounds = (year: number) => {
+  if (!Number.isInteger(year) || year < 1 || year > 9_998) {
+    throw new Error("Ano de reservas invalido.");
+  }
+
+  const start = zonedDateTimeToUtc(
+    {
+      year,
+      month: 1,
+      day: 1,
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    },
+    BOOKING_TIMEZONE,
+  );
+  const endExclusive = zonedDateTimeToUtc(
+    {
+      year: year + 1,
+      month: 1,
+      day: 1,
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    },
+    BOOKING_TIMEZONE,
+  );
+
+  return {
+    start,
+    endExclusive,
+  };
+};
+
 export const getBookingMinuteOfDay = (date: Date) => {
   const parts = getDateTimePartsInTimeZone(date, BOOKING_TIMEZONE);
   return parts.hour * 60 + parts.minute;

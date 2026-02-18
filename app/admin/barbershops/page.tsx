@@ -96,6 +96,7 @@ const AdminBarbershopsPage = async ({
                 <TableHead>Telefones</TableHead>
                 <TableHead>Stripe</TableHead>
                 <TableHead>Exclusiva</TableHead>
+                <TableHead>Plano</TableHead>
                 <TableHead>Acoes</TableHead>
               </TableRow>
             </TableHeader>
@@ -125,6 +126,11 @@ const AdminBarbershopsPage = async ({
                       {barbershop.exclusiveBarber ? "Sim" : "Nao"}
                     </TableCell>
                     <TableCell>
+                      {barbershop.plan === "PRO"
+                        ? `PRO (${barbershop.whatsappEnabled ? "WhatsApp on" : "WhatsApp off"})`
+                        : "BASIC"}
+                    </TableCell>
+                    <TableCell>
                       <Link
                         href={`/admin/barbershops/${barbershop.id}`}
                         className="text-sm font-medium underline-offset-4 hover:underline"
@@ -136,7 +142,7 @@ const AdminBarbershopsPage = async ({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground text-sm">
+                  <TableCell colSpan={7} className="text-muted-foreground text-sm">
                     Nenhuma barbearia encontrada.
                   </TableCell>
                 </TableRow>
