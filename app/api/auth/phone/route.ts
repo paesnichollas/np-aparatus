@@ -269,20 +269,33 @@ export async function POST(request: Request) {
       name: true,
       phone: true,
       provider: true,
+      phoneVerified: true,
+      phoneVerifiedAt: true,
     },
   });
 
   if (user) {
     const shouldUpdatePhone = user.phone !== normalizedPhoneE164;
     const shouldUpdateProvider = user.provider !== "phone";
+    const shouldUpdatePhoneVerification =
+      !user.phoneVerified || user.phoneVerifiedAt === null;
 
-    if (shouldUpdatePhone || shouldUpdateProvider) {
+    if (
+      shouldUpdatePhone ||
+      shouldUpdateProvider ||
+      shouldUpdatePhoneVerification
+    ) {
       const userDataToUpdate: Prisma.UserUpdateInput = {
         provider: "phone",
       };
 
       if (shouldUpdatePhone) {
         userDataToUpdate.phone = normalizedPhoneE164;
+      }
+
+      if (shouldUpdatePhoneVerification) {
+        userDataToUpdate.phoneVerified = true;
+        userDataToUpdate.phoneVerifiedAt = new Date();
       }
 
       try {

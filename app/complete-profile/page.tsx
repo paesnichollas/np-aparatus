@@ -39,7 +39,6 @@ const CompleteProfilePage = async ({ searchParams }: CompleteProfilePageProps) =
       email: true,
       provider: true,
       contactEmail: true,
-      phoneVerified: true,
       profileCompleted: true,
       accounts: {
         where: {
@@ -74,7 +73,6 @@ const CompleteProfilePage = async ({ searchParams }: CompleteProfilePageProps) =
       initialName={user.name}
       initialPhone={user.phone ?? ""}
       initialContactEmail={user.contactEmail ?? ""}
-      initialPhoneVerified={user.phoneVerified}
       provider={provider}
       hasPasswordAccount={user.accounts.length > 0}
       returnTo={returnTo}

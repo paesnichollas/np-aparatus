@@ -5,7 +5,6 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +21,6 @@ interface CompleteProfilePageClientProps {
   initialName: string;
   initialPhone: string;
   initialContactEmail: string;
-  initialPhoneVerified: boolean;
   provider: UserProvider;
   hasPasswordAccount: boolean;
   returnTo: string;
@@ -32,17 +30,12 @@ interface ApiErrorResponse {
   code?: string;
   error?: string;
   fields?: Record<string, string>;
-  devCode?: string;
-  expiresAt?: string;
-  retryAfterSeconds?: number;
 }
 
 interface FormFieldErrors {
   name?: string;
   phone?: string;
-  phoneVerified?: string;
   contactEmail?: string;
-  code?: string;
   password?: string;
 }
 
@@ -62,7 +55,6 @@ const CompleteProfilePageClient = ({
   initialName,
   initialPhone,
   initialContactEmail,
-  initialPhoneVerified,
   provider,
   hasPasswordAccount,
   returnTo,
@@ -73,15 +65,10 @@ const CompleteProfilePageClient = ({
     getBrPhoneDigits(initialPhone).slice(0, MAX_PHONE_LENGTH),
   );
   const [contactEmail, setContactEmail] = useState(initialContactEmail);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
-  const [isPhoneVerified, setIsPhoneVerified] = useState(initialPhoneVerified);
   const [fieldErrors, setFieldErrors] = useState<FormFieldErrors>({});
-  const [isStartingVerification, setIsStartingVerification] = useState(false);
-  const [isConfirmingVerification, setIsConfirmingVerification] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const requiresPhoneVerification = useMemo(() => {
+  const requiresPhone = useMemo(() => {
     return provider === "phone" || provider === "google";
   }, [provider]);
 
@@ -92,8 +79,18 @@ const CompleteProfilePageClient = ({
       return false;
     }
 
-    if (requiresPhoneVerification && !isPhoneVerified) {
-      return false;
+    if (requiresPhone) {
+      const normalizedPhone = normalizePhoneNumber(phoneDigits).slice(
+        0,
+        MAX_PHONE_LENGTH,
+      );
+
+      if (
+        normalizedPhone.length < MIN_PHONE_LENGTH ||
+        normalizedPhone.length > MAX_PHONE_LENGTH
+      ) {
+        return false;
+      }
     }
 
     if (provider === "credentials" && !hasPasswordAccount) {
@@ -101,7 +98,7 @@ const CompleteProfilePageClient = ({
     }
 
     return true;
-  }, [hasPasswordAccount, isPhoneVerified, name, provider, requiresPhoneVerification]);
+  }, [hasPasswordAccount, name, phoneDigits, provider, requiresPhone]);
 
   const clearFieldError = (fieldName: keyof FormFieldErrors) => {
     setFieldErrors((previousErrors) => {
@@ -128,126 +125,15 @@ const CompleteProfilePageClient = ({
     }
   };
 
-  const handleStartPhoneVerification = async () => {
-    const normalizedPhone = normalizePhoneNumber(phoneDigits).slice(
-      0,
-      MAX_PHONE_LENGTH,
-    );
-
-    if (
-      normalizedPhone.length < MIN_PHONE_LENGTH ||
-      normalizedPhone.length > MAX_PHONE_LENGTH
-    ) {
-      setFieldErrors((previousErrors) => ({
-        ...previousErrors,
-        phone: "Informe um telefone valido.",
-      }));
-      return;
-    }
-
-    clearFieldError("phone");
-    clearFieldError("phoneVerified");
-    clearFieldError("code");
-    setIsStartingVerification(true);
-
-    try {
-      const response = await fetch("/api/users/me/phone/start-verification", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          phone: normalizedPhone,
-        }),
-      });
-
-      let responseJson: ApiErrorResponse | null = null;
-
-      try {
-        responseJson = (await response.json()) as ApiErrorResponse;
-      } catch {
-        responseJson = null;
-      }
-
-      if (!response.ok) {
-        applyApiErrorResponse(responseJson);
-        toast.error(
-          responseJson?.error ??
-            "Nao foi possivel iniciar a verificacao de telefone.",
-        );
-        return;
-      }
-
-      setIsPhoneVerified(false);
-      setOtpExpiresAt(responseJson?.expiresAt ?? null);
-
-      if (responseJson?.devCode) {
-        toast.success(`Codigo enviado. Use ${responseJson.devCode} para validar.`);
-      } else {
-        toast.success("Codigo enviado por SMS.");
-      }
-    } catch {
-      toast.error("Nao foi possivel iniciar a verificacao de telefone.");
-    } finally {
-      setIsStartingVerification(false);
-    }
-  };
-
-  const handleConfirmPhoneVerification = async () => {
-    const normalizedCode = otpCode.trim();
-
-    if (!/^\d{6}$/.test(normalizedCode)) {
-      setFieldErrors((previousErrors) => ({
-        ...previousErrors,
-        code: "Informe o codigo de 6 digitos.",
-      }));
-      return;
-    }
-
-    clearFieldError("code");
-    setIsConfirmingVerification(true);
-
-    try {
-      const response = await fetch("/api/users/me/phone/confirm-verification", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          code: normalizedCode,
-        }),
-      });
-
-      let responseJson: ApiErrorResponse | null = null;
-
-      try {
-        responseJson = (await response.json()) as ApiErrorResponse;
-      } catch {
-        responseJson = null;
-      }
-
-      if (!response.ok) {
-        applyApiErrorResponse(responseJson);
-        toast.error(responseJson?.error ?? "Codigo invalido ou expirado.");
-        return;
-      }
-
-      setIsPhoneVerified(true);
-      clearFieldError("phoneVerified");
-      setOtpCode("");
-      toast.success("Telefone verificado com sucesso.");
-    } catch {
-      toast.error("Nao foi possivel confirmar o codigo.");
-    } finally {
-      setIsConfirmingVerification(false);
-    }
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedName = name.trim().replace(/\s+/g, " ");
     const normalizedContactEmail = contactEmail.trim().toLowerCase();
+    const normalizedPhone = normalizePhoneNumber(phoneDigits).slice(
+      0,
+      MAX_PHONE_LENGTH,
+    );
 
     const nextFieldErrors: FormFieldErrors = {};
 
@@ -255,13 +141,16 @@ const CompleteProfilePageClient = ({
       nextFieldErrors.name = "Informe um nome valido.";
     }
 
-    if (normalizedContactEmail && !isValidContactEmail(normalizedContactEmail)) {
-      nextFieldErrors.contactEmail = "Informe um email valido.";
+    if (
+      requiresPhone &&
+      (normalizedPhone.length < MIN_PHONE_LENGTH ||
+        normalizedPhone.length > MAX_PHONE_LENGTH)
+    ) {
+      nextFieldErrors.phone = "Informe um telefone valido.";
     }
 
-    if (requiresPhoneVerification && !isPhoneVerified) {
-      nextFieldErrors.phoneVerified =
-        "Verifique seu telefone antes de concluir o cadastro.";
+    if (normalizedContactEmail && !isValidContactEmail(normalizedContactEmail)) {
+      nextFieldErrors.contactEmail = "Informe um email valido.";
     }
 
     if (provider === "credentials" && !hasPasswordAccount) {
@@ -286,6 +175,7 @@ const CompleteProfilePageClient = ({
         body: JSON.stringify({
           name: normalizedName,
           contactEmail: normalizedContactEmail,
+          ...(requiresPhone ? { phone: normalizedPhone } : {}),
         }),
       });
 
@@ -305,14 +195,18 @@ const CompleteProfilePageClient = ({
           applyApiErrorResponse(responseJson);
         }
 
-        if (response.status === 409 && responseJson?.code === EMAIL_IN_USE_CODE) {
-          setFieldErrors((previousErrors) => ({
-            ...previousErrors,
-            contactEmail:
-              responseJson?.fields?.contactEmail ??
-              responseJson?.error ??
-              "Este email ja esta em uso.",
-          }));
+        if (response.status === 409) {
+          applyApiErrorResponse(responseJson);
+
+          if (responseJson?.code === EMAIL_IN_USE_CODE) {
+            setFieldErrors((previousErrors) => ({
+              ...previousErrors,
+              contactEmail:
+                responseJson?.fields?.contactEmail ??
+                responseJson?.error ??
+                "Este email ja esta em uso.",
+            }));
+          }
         }
 
         toast.error(responseJson?.error ?? "Nao foi possivel concluir seu cadastro.");
@@ -364,15 +258,9 @@ const CompleteProfilePageClient = ({
               ) : null}
             </div>
 
-            {requiresPhoneVerification ? (
-              <div className="space-y-3 rounded-lg border p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="complete-profile-phone">Telefone</Label>
-                  {isPhoneVerified ? (
-                    <Badge variant="outline">Telefone verificado</Badge>
-                  ) : null}
-                </div>
-
+            {requiresPhone ? (
+              <div className="space-y-2 rounded-lg border p-4">
+                <Label htmlFor="complete-profile-phone">Telefone</Label>
                 <div className="relative">
                   <Phone className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                   <Input
@@ -388,105 +276,17 @@ const CompleteProfilePageClient = ({
                           MAX_PHONE_LENGTH,
                         ),
                       );
-                      setIsPhoneVerified(false);
                       clearFieldError("phone");
-                      clearFieldError("phoneVerified");
                     }}
                     className="pl-9"
                     placeholder="(11) 99999-9999"
                     required
-                    disabled={
-                      isSubmitting || isStartingVerification || isConfirmingVerification
-                    }
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 {fieldErrors.phone ? (
                   <p className="text-destructive text-xs">{fieldErrors.phone}</p>
-                ) : null}
-
-                {!isPhoneVerified ? (
-                  <div className="space-y-3">
-                    <p className="text-muted-foreground text-xs">
-                      Verifique seu telefone com o codigo OTP para concluir o
-                      cadastro.
-                    </p>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleStartPhoneVerification}
-                        disabled={
-                          isSubmitting ||
-                          isStartingVerification ||
-                          isConfirmingVerification
-                        }
-                      >
-                        {isStartingVerification ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          "Enviar codigo"
-                        )}
-                      </Button>
-
-                      <div className="flex flex-1 gap-2">
-                        <Input
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          maxLength={6}
-                          value={otpCode}
-                          onChange={(event) => {
-                            setOtpCode(
-                              event.target.value.replace(/\D/g, "").slice(0, 6),
-                            );
-                            clearFieldError("code");
-                          }}
-                          placeholder="Codigo de 6 digitos"
-                          disabled={
-                            isSubmitting ||
-                            isStartingVerification ||
-                            isConfirmingVerification
-                          }
-                        />
-                        <Button
-                          type="button"
-                          onClick={handleConfirmPhoneVerification}
-                          disabled={
-                            isSubmitting ||
-                            isStartingVerification ||
-                            isConfirmingVerification
-                          }
-                        >
-                          {isConfirmingVerification ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            "Confirmar"
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {otpExpiresAt ? (
-                      <p className="text-muted-foreground text-xs">
-                        Codigo valido ate{" "}
-                        {new Date(otpExpiresAt).toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                        .
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {fieldErrors.code ? (
-                  <p className="text-destructive text-xs">{fieldErrors.code}</p>
-                ) : null}
-                {fieldErrors.phoneVerified ? (
-                  <p className="text-destructive text-xs">
-                    {fieldErrors.phoneVerified}
-                  </p>
                 ) : null}
               </div>
             ) : null}

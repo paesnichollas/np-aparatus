@@ -1,26 +1,26 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
-import { isValidE164Phone } from "@/lib/phone-normalization";
+import { normalizePhoneToE164 } from "@/lib/phone-normalization";
 import {
   EMAIL_IN_USE_CODE,
   PROFILE_INCOMPLETE_FIELDS_CODE,
 } from "@/lib/profile-completion";
 import { prisma } from "@/lib/prisma";
 import { resolveAndPersistUserProvider } from "@/lib/user-provider-server";
-import { headers } from "next/headers";
-import { z } from "zod";
 
 interface CompleteProfileRequestBody {
   name?: string;
   contactEmail?: string;
+  phone?: string;
 }
 
 interface CompleteProfileFieldErrors {
   name?: string;
   phone?: string;
-  phoneVerified?: string;
   contactEmail?: string;
   password?: string;
 }
@@ -29,11 +29,14 @@ const MIN_NAME_LENGTH = 2;
 const INVALID_REQUEST_MESSAGE = "Dados de cadastro invalidos.";
 const CONTACT_EMAIL_ALREADY_REGISTERED_ERROR_MESSAGE =
   "Ja ha um usuario cadastrado com esse email.";
+const PHONE_ALREADY_REGISTERED_ERROR_MESSAGE =
+  "Ja ha um usuario cadastrado com esse telefone.";
 const USER_NOT_FOUND_ERROR_MESSAGE = "Usuario nao encontrado.";
 
 const requestSchema = z.object({
   name: z.string().trim().max(120).optional(),
   contactEmail: z.string().trim().max(320).optional(),
+  phone: z.string().trim().max(40).optional(),
 });
 
 const isValidContactEmail = (email: string) => {
@@ -96,6 +99,11 @@ export async function PATCH(request: Request) {
   const normalizedContactEmailInput = parsedRequest.data.contactEmail
     ?.trim()
     .toLowerCase();
+  const normalizedPhoneInput = parsedRequest.data.phone?.trim();
+  const hasPhoneInput = Boolean(normalizedPhoneInput);
+  const normalizedPhoneFromInput = normalizedPhoneInput
+    ? normalizePhoneToE164(normalizedPhoneInput)
+    : null;
   const nextContactEmail =
     normalizedContactEmailInput && normalizedContactEmailInput.length > 0
       ? normalizedContactEmailInput
@@ -124,7 +132,6 @@ export async function PATCH(request: Request) {
       email: true,
       provider: true,
       phone: true,
-      phoneVerified: true,
       accounts: {
         where: {
           password: {
@@ -154,6 +161,10 @@ export async function PATCH(request: Request) {
     provider: currentUser.provider,
   });
 
+  const normalizedCurrentPhone = currentUser.phone
+    ? normalizePhoneToE164(currentUser.phone)
+    : null;
+  const nextPhone = hasPhoneInput ? normalizedPhoneFromInput : normalizedCurrentPhone;
   const nextName = normalizedNameInput ?? currentUser.name.trim().replace(/\s+/g, " ");
   const fieldErrors: CompleteProfileFieldErrors = {};
 
@@ -166,12 +177,10 @@ export async function PATCH(request: Request) {
   }
 
   if (provider === "phone" || provider === "google") {
-    if (!currentUser.phone || !isValidE164Phone(currentUser.phone)) {
-      fieldErrors.phone = "Informe e verifique um telefone valido.";
-    }
-
-    if (!currentUser.phoneVerified) {
-      fieldErrors.phoneVerified = "Verifique seu telefone por codigo OTP.";
+    if (hasPhoneInput && !normalizedPhoneFromInput) {
+      fieldErrors.phone = "Informe um telefone valido.";
+    } else if (!nextPhone) {
+      fieldErrors.phone = "Informe um telefone valido.";
     }
   }
 
@@ -217,16 +226,58 @@ export async function PATCH(request: Request) {
     }
   }
 
+  if (nextPhone) {
+    const conflictingUserByPhone = await prisma.user.findFirst({
+      where: {
+        id: {
+          not: currentUser.id,
+        },
+        phone: nextPhone,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (conflictingUserByPhone) {
+      return NextResponse.json(
+        {
+          error: PHONE_ALREADY_REGISTERED_ERROR_MESSAGE,
+          fields: {
+            phone: PHONE_ALREADY_REGISTERED_ERROR_MESSAGE,
+          },
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  const userDataToUpdate: Prisma.UserUpdateInput = {
+    name: nextName,
+    contactEmail: nextContactEmail,
+    profileCompleted: true,
+  };
+
+  if ((provider === "phone" || provider === "google") && nextPhone) {
+    userDataToUpdate.phone = nextPhone;
+    userDataToUpdate.phoneVerified = true;
+    userDataToUpdate.phoneVerifiedAt = new Date();
+
+    console.info(
+      "[phone-verification] OTP disabled: profile completed without OTP.",
+      {
+        userId: currentUser.id,
+        provider,
+      },
+    );
+  }
+
   try {
     await prisma.user.update({
       where: {
         id: currentUser.id,
       },
-      data: {
-        name: nextName,
-        contactEmail: nextContactEmail,
-        profileCompleted: true,
-      },
+      data: userDataToUpdate,
       select: {
         id: true,
       },
@@ -245,6 +296,18 @@ export async function PATCH(request: Request) {
             error: CONTACT_EMAIL_ALREADY_REGISTERED_ERROR_MESSAGE,
             fields: {
               contactEmail: CONTACT_EMAIL_ALREADY_REGISTERED_ERROR_MESSAGE,
+            },
+          },
+          { status: 409 },
+        );
+      }
+
+      if (uniqueConstraintFields.includes("phone")) {
+        return NextResponse.json(
+          {
+            error: PHONE_ALREADY_REGISTERED_ERROR_MESSAGE,
+            fields: {
+              phone: PHONE_ALREADY_REGISTERED_ERROR_MESSAGE,
             },
           },
           { status: 409 },
