@@ -8,6 +8,13 @@ const WAITLIST_ENTRY_SELECT = {
   dateDay: true,
   status: true,
   fulfilledBookingId: true,
+  fulfilledBooking: {
+    select: {
+      id: true,
+      paymentMethod: true,
+      paymentStatus: true,
+    },
+  },
   fulfilledSeenAt: true,
   createdAt: true,
   updatedAt: true,

@@ -20,7 +20,7 @@ const getStatusLabel = (status: WaitlistEntryWithRelations["status"]) => {
   }
 
   if (status === "CANCELED") {
-    return "CANCELADA";
+    return "CANCELADO";
   }
 
   return "EXPIRADA";
@@ -77,12 +77,24 @@ const WaitlistList = ({ entries, emptyMessage }: WaitlistListProps) => {
             </div>
 
             {entry.status === "FULFILLED" && entry.fulfilledBookingId ? (
-              <Link
-                href={`/bookings?bookingId=${encodeURIComponent(entry.fulfilledBookingId)}`}
-                className="text-primary text-xs font-medium underline"
-              >
-                Ver agendamento criado
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                {entry.fulfilledBooking?.paymentMethod === "STRIPE" &&
+                entry.fulfilledBooking.paymentStatus === "PENDING" ? (
+                  <Link
+                    href={`/api/bookings/${encodeURIComponent(entry.fulfilledBookingId)}/checkout`}
+                    className="text-primary text-xs font-medium underline"
+                    prefetch={false}
+                  >
+                    Pagar agora
+                  </Link>
+                ) : null}
+                <Link
+                  href={`/bookings?bookingId=${encodeURIComponent(entry.fulfilledBookingId)}`}
+                  className="text-primary text-xs font-medium underline"
+                >
+                  Ver agendamento criado
+                </Link>
+              </div>
             ) : null}
           </CardContent>
         </Card>

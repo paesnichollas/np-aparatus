@@ -42,6 +42,7 @@ describe("waitlist-fulfillment", () => {
         waitlistEntry: {} as never,
         barbershopService: {} as never,
         booking: {} as never,
+        barbershop: {} as never,
       },
       {
         ...baseInput,
@@ -77,6 +78,7 @@ describe("waitlist-fulfillment", () => {
               return {
                 id: "entry-1",
                 userId: "user-1",
+                requestedPaymentMethod: "IN_PERSON",
               };
             }
 
@@ -98,6 +100,11 @@ describe("waitlist-fulfillment", () => {
           },
         } as never,
         booking: {} as never,
+        barbershop: {
+          findUnique: async () => ({
+            stripeEnabled: false,
+          }),
+        } as never,
       },
       baseInput,
       {
@@ -129,6 +136,7 @@ describe("waitlist-fulfillment", () => {
             return {
               id: "entry-1",
               userId: "user-1",
+              requestedPaymentMethod: "IN_PERSON",
             };
           },
           updateMany: async (args: unknown) => {
@@ -160,6 +168,11 @@ describe("waitlist-fulfillment", () => {
             };
           },
         } as never,
+        barbershop: {
+          findUnique: async () => ({
+            stripeEnabled: false,
+          }),
+        } as never,
       },
       baseInput,
       {
@@ -172,6 +185,12 @@ describe("waitlist-fulfillment", () => {
     expect(updateManyCalls.length).toBe(1);
     expect(updateCalls.length).toBe(1);
     expect(bookingCreateCalls.length).toBe(1);
+    expect(bookingCreateCalls[0]).toMatchObject({
+      data: {
+        paymentMethod: "IN_PERSON",
+        paymentStatus: "PENDING",
+      },
+    });
     expect(scheduledBookings).toEqual(["booking-fulfilled-1"]);
     expect(result).toEqual({
       fulfilled: true,
@@ -179,6 +198,59 @@ describe("waitlist-fulfillment", () => {
       fulfilledBookingId: "booking-fulfilled-1",
       expiredEntriesCount: 0,
       skippedReason: null,
+    });
+  });
+
+  it("fulfillWaitlistInTransaction keeps stripe method as pending when requested", async () => {
+    const bookingCreateCalls: Array<unknown> = [];
+
+    await fulfillWaitlistInTransaction(
+      {
+        waitlistEntry: {
+          findFirst: async () => {
+            return {
+              id: "entry-stripe-1",
+              userId: "user-1",
+              requestedPaymentMethod: "STRIPE",
+            };
+          },
+          updateMany: async () => ({ count: 1 }),
+          update: async () => ({ id: "entry-stripe-1" }),
+        } as never,
+        barbershopService: {
+          findFirst: async () => {
+            return {
+              durationInMinutes: 30,
+              priceInCents: 5000,
+            };
+          },
+        } as never,
+        booking: {
+          create: async (args: unknown) => {
+            bookingCreateCalls.push(args);
+            return {
+              id: "booking-stripe-1",
+            };
+          },
+        } as never,
+        barbershop: {
+          findUnique: async () => ({
+            stripeEnabled: true,
+          }),
+        } as never,
+      },
+      baseInput,
+      {
+        scheduleBookingNotificationJobs: async () => undefined,
+      },
+    );
+
+    expect(bookingCreateCalls.length).toBe(1);
+    expect(bookingCreateCalls[0]).toMatchObject({
+      data: {
+        paymentMethod: "STRIPE",
+        paymentStatus: "PENDING",
+      },
     });
   });
 });

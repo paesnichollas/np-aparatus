@@ -14,6 +14,7 @@ const requestSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/),
+  paymentMethod: z.enum(["STRIPE", "IN_PERSON"]).optional(),
 });
 
 const INVALID_REQUEST_MESSAGE = "Requisição inválida.";
@@ -37,7 +38,11 @@ const normalizeForMessageMatch = (value: string) => {
 
 const isUnauthorizedErrorMessage = (message: string) => {
   const normalizedMessage = normalizeForMessageMatch(message);
-  return normalizedMessage.includes("nao autorizado") || normalizedMessage.includes("login");
+  return (
+    normalizedMessage.includes("nao autorizado") ||
+    normalizedMessage.includes("não autorizado") ||
+    normalizedMessage.includes("login")
+  );
 };
 
 export const POST = async (request: Request) => {
@@ -76,7 +81,13 @@ export const POST = async (request: Request) => {
     );
   }
 
-  const joinWaitlistResult = await joinWaitlist(parsedRequest.data);
+  const joinWaitlistResult = await joinWaitlist({
+    barbershopId: parsedRequest.data.barbershopId,
+    barberId: parsedRequest.data.barberId,
+    serviceId: parsedRequest.data.serviceId,
+    dateDay: parsedRequest.data.dateDay,
+    paymentMethod: parsedRequest.data.paymentMethod,
+  });
 
   const validationMessage = getValidationErrorMessage(
     joinWaitlistResult.validationErrors,

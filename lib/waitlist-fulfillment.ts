@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { resolveInitialPaymentState } from "@/lib/booking-payment";
 import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
 import { getBookingDateKey, parseBookingDateOnly } from "@/lib/booking-time";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export interface WaitlistFulfillmentResult {
 
 type WaitlistFulfillmentTransaction = Pick<
   Prisma.TransactionClient,
-  "waitlistEntry" | "barbershopService" | "booking"
+  "waitlistEntry" | "barbershopService" | "booking" | "barbershop"
 >;
 
 export const resolveReleasedDurationMinutes = ({
@@ -106,6 +107,15 @@ export const fulfillWaitlistInTransaction = async (
   }
 
   let expiredEntriesCount = 0;
+  const barbershop = await tx.barbershop.findUnique({
+    where: {
+      id: input.barbershopId,
+    },
+    select: {
+      stripeEnabled: true,
+    },
+  });
+  const stripeEnabled = barbershop?.stripeEnabled ?? false;
 
   for (let attempt = 0; attempt < MAX_FULFILLMENT_ATTEMPTS; attempt += 1) {
     const entry = await tx.waitlistEntry.findFirst({
@@ -120,6 +130,7 @@ export const fulfillWaitlistInTransaction = async (
       select: {
         id: true,
         userId: true,
+        requestedPaymentMethod: true,
       },
     });
 
@@ -180,6 +191,11 @@ export const fulfillWaitlistInTransaction = async (
     const bookingEndAt = new Date(
       input.releasedStartAt.getTime() + service.durationInMinutes * 60_000,
     );
+    const initialPaymentState = resolveInitialPaymentState({
+      stripeEnabled,
+      requestedPaymentMethod: entry.requestedPaymentMethod,
+      allowStripeCheckout: true,
+    });
 
     const fulfilledBooking = await tx.booking.create({
       data: {
@@ -192,8 +208,8 @@ export const fulfillWaitlistInTransaction = async (
         userId: entry.userId,
         barberId: input.barberId,
         barbershopId: input.barbershopId,
-        paymentMethod: "IN_PERSON",
-        paymentStatus: "PAID",
+        paymentMethod: initialPaymentState.paymentMethod,
+        paymentStatus: initialPaymentState.paymentStatus,
         services: {
           create: {
             serviceId: input.serviceId,

@@ -65,6 +65,18 @@ const WaitlistFulfillmentBanner = ({ entries }: WaitlistFulfillmentBannerProps) 
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {entry.fulfilledBookingId &&
+              entry.fulfilledBooking?.paymentMethod === "STRIPE" &&
+              entry.fulfilledBooking.paymentStatus === "PENDING" ? (
+                <Button asChild size="sm">
+                  <Link
+                    href={`/api/bookings/${encodeURIComponent(entry.fulfilledBookingId)}/checkout`}
+                    prefetch={false}
+                  >
+                    Pagar agora
+                  </Link>
+                </Button>
+              ) : null}
               {entry.fulfilledBookingId ? (
                 <Button asChild variant="outline" size="sm">
                   <Link

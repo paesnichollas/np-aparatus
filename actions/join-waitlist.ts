@@ -3,6 +3,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { criticalActionClient } from "@/lib/action-client";
 import { getAvailableBookingTimeSlots } from "@/lib/booking-availability";
+import { resolveInitialPaymentState } from "@/lib/booking-payment";
 import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
 import { getBookingDateKey, parseBookingDateOnly } from "@/lib/booking-time";
 import { prisma } from "@/lib/prisma";
@@ -17,13 +18,14 @@ const inputSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/),
+  paymentMethod: z.enum(["STRIPE", "IN_PERSON"]).optional(),
 });
 
 export const joinWaitlist = criticalActionClient
   .inputSchema(inputSchema)
   .action(
     async ({
-      parsedInput: { barbershopId, barberId, serviceId, dateDay },
+      parsedInput: { barbershopId, barberId, serviceId, dateDay, paymentMethod },
       ctx: { user },
     }) => {
       const parsedDateDay = parseBookingDateOnly(dateDay);
@@ -50,6 +52,7 @@ export const joinWaitlist = criticalActionClient
           select: {
             id: true,
             isActive: true,
+            stripeEnabled: true,
           },
         }),
         prisma.barber.findFirst({
@@ -124,6 +127,12 @@ export const joinWaitlist = criticalActionClient
         });
       }
 
+      const initialPaymentState = resolveInitialPaymentState({
+        stripeEnabled: barbershop.stripeEnabled,
+        requestedPaymentMethod: paymentMethod ?? "IN_PERSON",
+        allowStripeCheckout: true,
+      });
+
       try {
         const createdEntry = await prisma.$transaction(async (tx) => {
           const entry = await tx.waitlistEntry.create({
@@ -134,6 +143,7 @@ export const joinWaitlist = criticalActionClient
               userId: user.id,
               dateDay: parsedDateDay,
               status: "ACTIVE",
+              requestedPaymentMethod: initialPaymentState.paymentMethod,
             },
             select: {
               id: true,
