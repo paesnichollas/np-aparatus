@@ -45,145 +45,163 @@ export const scheduleBookingNotificationJobs = async (
     return { createdCount: 0 };
   }
 
-  const booking = await dbClient.booking.findUnique({
-    where: {
-      id: normalizedBookingId,
-    },
-    select: {
-      id: true,
-      barbershopId: true,
-      paymentMethod: true,
-      paymentStatus: true,
-      stripeChargeId: true,
-      cancelledAt: true,
-      startAt: true,
-      date: true,
-      user: {
-        select: {
-          phone: true,
-        },
+  try {
+    const booking = await dbClient.booking.findUnique({
+      where: {
+        id: normalizedBookingId,
       },
-      barbershop: {
-        select: {
-          plan: true,
-          whatsappEnabled: true,
-          whatsappProvider: true,
-          whatsappSettings: {
-            select: {
-              sendBookingConfirmation: true,
-              sendReminder24h: true,
-              sendReminder1h: true,
+      select: {
+        id: true,
+        barbershopId: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        stripeChargeId: true,
+        cancelledAt: true,
+        startAt: true,
+        date: true,
+        user: {
+          select: {
+            phone: true,
+          },
+        },
+        barbershop: {
+          select: {
+            plan: true,
+            whatsappEnabled: true,
+            whatsappProvider: true,
+            whatsappSettings: {
+              select: {
+                sendBookingConfirmation: true,
+                sendReminder24h: true,
+                sendReminder1h: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  if (!booking) {
-    return { createdCount: 0 };
-  }
+    if (!booking) {
+      return { createdCount: 0 };
+    }
 
-  if (booking.cancelledAt) {
-    return { createdCount: 0 };
-  }
+    if (booking.cancelledAt) {
+      return { createdCount: 0 };
+    }
 
-  if (!isBookingConfirmedForNotifications(booking)) {
-    return { createdCount: 0 };
-  }
+    if (!isBookingConfirmedForNotifications(booking)) {
+      return { createdCount: 0 };
+    }
 
-  if (!isValidE164Phone(booking.user.phone)) {
-    console.info(
-      "[scheduleBookingNotificationJobs] Ignorando agendamento de notificacoes por telefone inválido.",
-      {
+    if (!isValidE164Phone(booking.user.phone)) {
+      console.info(
+        "[scheduleBookingNotificationJobs] Ignorando agendamento de notificações por telefone inválido.",
+        {
+          bookingId: booking.id,
+          userPhone: booking.user.phone,
+        },
+      );
+      return { createdCount: 0 };
+    }
+
+    const now = new Date();
+    const bookingStartAt = getBookingStartDate(booking);
+    const settings = resolveNotificationSettings(
+      booking.barbershop.whatsappSettings,
+    );
+
+    const candidates: Array<{
+      type: "BOOKING_CONFIRM" | "REMINDER_24H" | "REMINDER_1H";
+      scheduledAt: Date;
+    }> = [];
+
+    if (
+      !getNotificationFeatureBlockReason({
+        barbershop: {
+          plan: booking.barbershop.plan,
+          whatsappEnabled: booking.barbershop.whatsappEnabled,
+          whatsappProvider: booking.barbershop.whatsappProvider,
+        },
+        settings,
+        type: "BOOKING_CONFIRM",
+      })
+    ) {
+      candidates.push({
+        type: "BOOKING_CONFIRM",
+        scheduledAt: now,
+      });
+    }
+
+    const reminder24hDate = new Date(
+      bookingStartAt.getTime() - 24 * HOUR_IN_MILLISECONDS,
+    );
+    if (
+      reminder24hDate.getTime() > now.getTime() &&
+      !getNotificationFeatureBlockReason({
+        barbershop: {
+          plan: booking.barbershop.plan,
+          whatsappEnabled: booking.barbershop.whatsappEnabled,
+          whatsappProvider: booking.barbershop.whatsappProvider,
+        },
+        settings,
+        type: "REMINDER_24H",
+      })
+    ) {
+      candidates.push({
+        type: "REMINDER_24H",
+        scheduledAt: reminder24hDate,
+      });
+    }
+
+    const reminder1hDate = new Date(
+      bookingStartAt.getTime() - HOUR_IN_MILLISECONDS,
+    );
+    if (
+      reminder1hDate.getTime() > now.getTime() &&
+      !getNotificationFeatureBlockReason({
+        barbershop: {
+          plan: booking.barbershop.plan,
+          whatsappEnabled: booking.barbershop.whatsappEnabled,
+          whatsappProvider: booking.barbershop.whatsappProvider,
+        },
+        settings,
+        type: "REMINDER_1H",
+      })
+    ) {
+      candidates.push({
+        type: "REMINDER_1H",
+        scheduledAt: reminder1hDate,
+      });
+    }
+
+    if (candidates.length === 0) {
+      return { createdCount: 0 };
+    }
+
+    const createdJobs = await dbClient.notificationJob.createMany({
+      data: candidates.map((candidate) => ({
         bookingId: booking.id,
-        userPhone: booking.user.phone,
+        barbershopId: booking.barbershopId,
+        type: candidate.type,
+        scheduledAt: candidate.scheduledAt,
+      })),
+      skipDuplicates: true,
+    });
+
+    return {
+      createdCount: createdJobs.count,
+    };
+  } catch (error) {
+    console.error(
+      "[scheduleBookingNotificationJobs] Falha ao processar jobs de notificação.",
+      {
+        error,
+        bookingId: normalizedBookingId,
       },
     );
+
     return { createdCount: 0 };
   }
-
-  const now = new Date();
-  const bookingStartAt = getBookingStartDate(booking);
-  const settings = resolveNotificationSettings(booking.barbershop.whatsappSettings);
-
-  const candidates: Array<{
-    type: "BOOKING_CONFIRM" | "REMINDER_24H" | "REMINDER_1H";
-    scheduledAt: Date;
-  }> = [];
-
-  if (
-    !getNotificationFeatureBlockReason({
-      barbershop: {
-        plan: booking.barbershop.plan,
-        whatsappEnabled: booking.barbershop.whatsappEnabled,
-        whatsappProvider: booking.barbershop.whatsappProvider,
-      },
-      settings,
-      type: "BOOKING_CONFIRM",
-    })
-  ) {
-    candidates.push({
-      type: "BOOKING_CONFIRM",
-      scheduledAt: now,
-    });
-  }
-
-  const reminder24hDate = new Date(bookingStartAt.getTime() - 24 * HOUR_IN_MILLISECONDS);
-  if (
-    reminder24hDate.getTime() > now.getTime() &&
-    !getNotificationFeatureBlockReason({
-      barbershop: {
-        plan: booking.barbershop.plan,
-        whatsappEnabled: booking.barbershop.whatsappEnabled,
-        whatsappProvider: booking.barbershop.whatsappProvider,
-      },
-      settings,
-      type: "REMINDER_24H",
-    })
-  ) {
-    candidates.push({
-      type: "REMINDER_24H",
-      scheduledAt: reminder24hDate,
-    });
-  }
-
-  const reminder1hDate = new Date(bookingStartAt.getTime() - HOUR_IN_MILLISECONDS);
-  if (
-    reminder1hDate.getTime() > now.getTime() &&
-    !getNotificationFeatureBlockReason({
-      barbershop: {
-        plan: booking.barbershop.plan,
-        whatsappEnabled: booking.barbershop.whatsappEnabled,
-        whatsappProvider: booking.barbershop.whatsappProvider,
-      },
-      settings,
-      type: "REMINDER_1H",
-    })
-  ) {
-    candidates.push({
-      type: "REMINDER_1H",
-      scheduledAt: reminder1hDate,
-    });
-  }
-
-  if (candidates.length === 0) {
-    return { createdCount: 0 };
-  }
-
-  const createdJobs = await dbClient.notificationJob.createMany({
-    data: candidates.map((candidate) => ({
-      bookingId: booking.id,
-      barbershopId: booking.barbershopId,
-      type: candidate.type,
-      scheduledAt: candidate.scheduledAt,
-    })),
-    skipDuplicates: true,
-  });
-
-  return {
-    createdCount: createdJobs.count,
-  };
 };
 
 export const cancelPendingBookingNotificationJobs = async (
@@ -200,22 +218,35 @@ export const cancelPendingBookingNotificationJobs = async (
 
   const now = new Date();
 
-  const canceledJobs = await dbClient.notificationJob.updateMany({
-    where: {
-      bookingId: normalizedBookingId,
-      status: "PENDING",
-    },
-    data: {
-      status: "CANCELED",
-      canceledAt: now,
-      cancelReason: reason,
-      lastError: null,
-    },
-  });
+  try {
+    const canceledJobs = await dbClient.notificationJob.updateMany({
+      where: {
+        bookingId: normalizedBookingId,
+        status: "PENDING",
+      },
+      data: {
+        status: "CANCELED",
+        canceledAt: now,
+        cancelReason: reason,
+        lastError: null,
+      },
+    });
 
-  return {
-    canceledCount: canceledJobs.count,
-  };
+    return {
+      canceledCount: canceledJobs.count,
+    };
+  } catch (error) {
+    console.error(
+      "[cancelPendingBookingNotificationJobs] Falha ao cancelar jobs pendentes.",
+      {
+        error,
+        bookingId: normalizedBookingId,
+        reason,
+      },
+    );
+
+    return { canceledCount: 0 };
+  }
 };
 
 export const cancelFuturePendingBarbershopNotificationJobs = async (
@@ -232,23 +263,36 @@ export const cancelFuturePendingBarbershopNotificationJobs = async (
 
   const now = new Date();
 
-  const canceledJobs = await dbClient.notificationJob.updateMany({
-    where: {
-      barbershopId: normalizedBarbershopId,
-      status: "PENDING",
-      scheduledAt: {
-        gt: now,
+  try {
+    const canceledJobs = await dbClient.notificationJob.updateMany({
+      where: {
+        barbershopId: normalizedBarbershopId,
+        status: "PENDING",
+        scheduledAt: {
+          gt: now,
+        },
       },
-    },
-    data: {
-      status: "CANCELED",
-      canceledAt: now,
-      cancelReason: reason,
-      lastError: null,
-    },
-  });
+      data: {
+        status: "CANCELED",
+        canceledAt: now,
+        cancelReason: reason,
+        lastError: null,
+      },
+    });
 
-  return {
-    canceledCount: canceledJobs.count,
-  };
+    return {
+      canceledCount: canceledJobs.count,
+    };
+  } catch (error) {
+    console.error(
+      "[cancelFuturePendingBarbershopNotificationJobs] Falha ao cancelar jobs futuros.",
+      {
+        error,
+        barbershopId: normalizedBarbershopId,
+        reason,
+      },
+    );
+
+    return { canceledCount: 0 };
+  }
 };
