@@ -9,11 +9,7 @@ import {
 } from "@/lib/booking-status";
 import { getBookingDayBounds } from "@/lib/booking-time";
 import { prisma } from "@/lib/prisma";
-import {
-  reconcilePendingBookingBySessionId,
-  reconcilePendingBookingsForBarbershop,
-  reconcilePendingBookingsForUser,
-} from "@/lib/stripe-booking-reconciliation";
+import { reconcilePendingBookingBySessionId } from "@/lib/stripe-booking-reconciliation";
 import { headers } from "next/headers";
 
 const BOOKING_BASE_SELECT = {
@@ -216,18 +212,6 @@ export const getUserBookings = async (options?: GetUserBookingsOptions) => {
     }
   }
 
-  try {
-    await reconcilePendingBookingsForUser(user.id);
-  } catch (error) {
-    console.error(
-      "[getUserBookings] Failed to reconcile pending bookings for user.",
-      {
-        error,
-        userId: user.id,
-      },
-    );
-  }
-
   const now = new Date();
   const [confirmedBookings, finishedBookings] = await Promise.all([
     getConfirmedBookingsByUserId(user.id, now),
@@ -235,20 +219,6 @@ export const getUserBookings = async (options?: GetUserBookingsOptions) => {
   ]);
 
   return { confirmedBookings, finishedBookings };
-};
-
-const reconcileOwnerBookings = async (barbershopId: string) => {
-  try {
-    await reconcilePendingBookingsForBarbershop(barbershopId);
-  } catch (error) {
-    console.error(
-      "[getOwnerBarbershopBookings] Failed to reconcile pending bookings for barbershop.",
-      {
-        error,
-        barbershopId,
-      },
-    );
-  }
 };
 
 export const getOwnerBarbershopBookings = async (
@@ -259,8 +229,6 @@ export const getOwnerBarbershopBookings = async (
   if (!normalizedBarbershopId) {
     return [];
   }
-
-  await reconcileOwnerBookings(normalizedBarbershopId);
 
   return prisma.booking.findMany({
     where: {
@@ -281,8 +249,6 @@ export const getOwnerTodayBarbershopBookingGroups = async (
   if (!normalizedBarbershopId) {
     return [];
   }
-
-  await reconcileOwnerBookings(normalizedBarbershopId);
 
   const { start, endExclusive } = getBookingDayBounds(new Date());
   const bookings = await prisma.booking.findMany({
@@ -329,4 +295,72 @@ export const getOwnerTodayBarbershopBookingGroups = async (
   }).filter((group) => {
     return group.bookings.length > 0;
   });
+};
+
+const OWNER_FUTURE_BOOKINGS_LIMIT = 30;
+const OWNER_PAST_BOOKINGS_LIMIT = 20;
+
+export const getOwnerFutureBookings = async (
+  barbershopId: string,
+  limit = OWNER_FUTURE_BOOKINGS_LIMIT,
+) => {
+  const now = new Date();
+
+  return prisma.booking.findMany({
+    where: {
+      barbershopId,
+      date: { gte: now },
+      OR: [
+        CONFIRMED_BOOKING_PAYMENT_WHERE,
+        { cancelledAt: { not: null } },
+      ],
+    },
+    select: OWNER_BOOKING_SELECT,
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    take: limit,
+  });
+};
+
+export const getOwnerPastBookingsPaginated = async (
+  barbershopId: string,
+  page = 1,
+  limit = OWNER_PAST_BOOKINGS_LIMIT,
+) => {
+  const now = new Date();
+  const skip = (page - 1) * limit;
+
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        barbershopId,
+        OR: [
+          { date: { lt: now } },
+          { cancelledAt: { not: null } },
+          { paymentStatus: "FAILED" },
+        ],
+      },
+      select: OWNER_BOOKING_SELECT,
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      skip,
+      take: limit,
+    }),
+    prisma.booking.count({
+      where: {
+        barbershopId,
+        OR: [
+          { date: { lt: now } },
+          { cancelledAt: { not: null } },
+          { paymentStatus: "FAILED" },
+        ],
+      },
+    }),
+  ]);
+
+  return {
+    bookings,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+    hasMore: skip + bookings.length < total,
+  };
 };

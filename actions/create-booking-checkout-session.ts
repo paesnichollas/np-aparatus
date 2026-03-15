@@ -1,30 +1,14 @@
 "use server";
 
+import {
+  createCheckoutConfirmedBooking,
+  createCheckoutPendingBooking,
+  validateAndResolveCheckoutInput,
+} from "@/lib/booking-creation-service";
 import { criticalActionClient } from "@/lib/action-client";
 import { resolveAppBaseUrl } from "@/lib/app-url";
-import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
-import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
-import {
-  BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingMinuteOfDay,
-  isBookingDateTimeAtOrBeforeNowWithBuffer,
-} from "@/lib/booking-time";
-import {
-  calculateBookingTotals,
-  getBookingDurationMinutes,
-  getBookingStartDate,
-} from "@/lib/booking-mutation-helpers";
-import {
-  ACTIVE_BOOKING_PAYMENT_WHERE,
-  resolveInitialPaymentState,
-} from "@/lib/booking-payment";
-import {
-  checkTimeSlotCollision,
-  deduplicateServiceIds,
-  getDayWindow,
-  hasInvalidServiceData,
-} from "@/lib/booking-mutation-helpers";
-import { prisma } from "@/lib/prisma";
+import { resolveInitialPaymentState } from "@/lib/booking-payment";
+import { deduplicateServiceIds } from "@/lib/booking-mutation-helpers";
 import { returnValidationErrors } from "next-safe-action";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -50,217 +34,75 @@ export const createBookingCheckoutSession = criticalActionClient
       },
       ctx: { user },
     }) => {
-      if (
-        isBookingDateTimeAtOrBeforeNowWithBuffer(
-          startAt,
-          BOOKING_SLOT_BUFFER_MINUTES,
-        )
-      ) {
-        returnValidationErrors(inputSchema, {
-          _errors: [
-            "Data e horário selecionados já passaram ou estão muito próximos do horário atual.",
-          ],
-        });
-      }
-
-      const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
-        getDayWindow(startAt);
-
       const uniqueServiceIds = deduplicateServiceIds(serviceIds);
-      if (uniqueServiceIds.length === 0) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Selecione pelo menos um serviço."],
-        });
-      }
-
-      const [barbershop, barber, services] = await Promise.all([
-        prisma.barbershop.findUnique({
-          where: {
-            id: barbershopId,
-          },
-          select: {
-            id: true,
-            name: true,
-            phones: true,
-            owner: {
-              select: {
-                phone: true,
-              },
-            },
-            stripeEnabled: true,
-            isActive: true,
-          },
-        }),
-        prisma.barber.findFirst({
-          where: {
-            id: barberId,
-            barbershopId,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-        prisma.barbershopService.findMany({
-          where: {
-            id: {
-              in: uniqueServiceIds,
-            },
-            barbershopId,
-            deletedAt: null,
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            imageUrl: true,
-            priceInCents: true,
-            durationInMinutes: true,
-          },
-          orderBy: {
-            name: "asc",
-          },
-        }),
-      ]);
-
-      if (!barbershop || !barber) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Barbearia ou barbeiro não encontrado."],
-        });
-      }
-
-      if (!barbershop.isActive) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Barbearia indisponível para agendamentos."],
-        });
-      }
-
-      if (services.length !== uniqueServiceIds.length) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Um ou mais serviços selecionados não estão disponíveis."],
-        });
-      }
-
-      const hasInvalidService = services.some((service) =>
-        hasInvalidServiceData(service),
-      );
-      if (hasInvalidService) {
-        returnValidationErrors(inputSchema, {
-          _errors: [
-            "Um ou mais serviços estão temporariamente indisponíveis para agendamento.",
-          ],
-        });
-      }
-
-      const { totalDurationMinutes, totalPriceInCents } =
-        calculateBookingTotals(services);
-      if (totalDurationMinutes <= 0) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Não foi possível calcular a duração total do agendamento."],
-        });
-      }
-
-      const endAt = new Date(startAt.getTime() + totalDurationMinutes * 60_000);
-
-      const bookings = await prisma.booking.findMany({
-        where: {
-          barbershopId,
-          AND: [
-            {
-              OR: [{ barberId }, { barberId: null }],
-            },
-            ACTIVE_BOOKING_PAYMENT_WHERE,
-          ],
-          date: {
-            gte: selectedDateStart,
-            lt: selectedDateEndExclusive,
-          },
-          cancelledAt: null,
-        },
-        select: {
-          startAt: true,
-          totalDurationMinutes: true,
-          date: true,
-          service: {
-            select: {
-              durationInMinutes: true,
-            },
-          },
-        },
+      const validation = await validateAndResolveCheckoutInput({
+        barbershopId,
+        barberId,
+        serviceIds: uniqueServiceIds,
+        startAt,
+        userId: user.id,
+        stripeEnabled: true,
+        paymentMethod,
       });
 
-      const hasCollision = checkTimeSlotCollision(
-        getBookingMinuteOfDay(startAt),
-        totalDurationMinutes,
-        bookings,
-      );
-
-      if (hasCollision) {
+      if (!validation.ok) {
         returnValidationErrors(inputSchema, {
-          _errors: ["Data e horário selecionados já estão agendados."],
+          _errors: [validation.error],
         });
       }
 
-      const primaryServiceId = uniqueServiceIds[0];
-      const ownerPhone = barbershop.owner?.phone?.trim() ?? null;
-      const primaryBarbershopPhone =
-        ownerPhone ??
-        barbershop.phones
-          .map((phone) => phone.trim())
-          .find((phone) => phone.length > 0) ?? null;
+      const {
+        totalDurationMinutes,
+        totalPriceInCents,
+        barbershopId: validatedBarbershopId,
+        barberId: validatedBarberId,
+        barbershopName,
+        barberName,
+        barbershopPhone,
+        stripeEnabled,
+        services,
+      } = validation;
+
       const requestedPaymentMethod =
-        paymentMethod ?? (barbershop.stripeEnabled ? "STRIPE" : "IN_PERSON");
+        paymentMethod ?? (stripeEnabled ? "STRIPE" : "IN_PERSON");
       const initialPaymentState = resolveInitialPaymentState({
-        stripeEnabled: barbershop.stripeEnabled,
+        stripeEnabled,
         requestedPaymentMethod,
         allowStripeCheckout: true,
       });
 
       if (!initialPaymentState.requiresStripeCheckout) {
-        const booking = await prisma.booking.create({
-          data: {
-            serviceId: primaryServiceId,
-            date: startAt.toISOString(),
-            startAt: startAt.toISOString(),
-            endAt: endAt.toISOString(),
-            totalDurationMinutes,
-            totalPriceInCents,
-            userId: user.id,
-            barberId: barber.id,
-            barbershopId: barbershop.id,
-            paymentMethod: initialPaymentState.paymentMethod,
-            paymentStatus: initialPaymentState.paymentStatus,
-            services: {
-              createMany: {
-                data: uniqueServiceIds.map((serviceId) => ({
-                  serviceId,
-                })),
-              },
-            },
-          },
-          select: {
-            id: true,
-          },
+        const directResult = await createCheckoutConfirmedBooking({
+          barbershopId,
+          barberId,
+          serviceIds: uniqueServiceIds,
+          startAt,
+          userId: user.id,
+          stripeEnabled,
+          paymentMethod,
         });
 
-        await scheduleBookingNotificationJobs(booking.id);
-        revalidateBookingSurfaces();
+        if (directResult.ok) {
+          return {
+            kind: "created" as const,
+            bookingId: directResult.bookingId,
+            receipt: {
+              bookingId: directResult.bookingId,
+              status: "confirmed" as const,
+              customerName: user.name,
+              barbershopName: directResult.receipt.barbershopName,
+              barberName: directResult.receipt.barberName,
+              barbershopPhone: directResult.receipt.barbershopPhone,
+              bookingStartAt: startAt.toISOString(),
+              serviceNames: directResult.receipt.serviceNames,
+              totalPriceInCents: directResult.receipt.totalPriceInCents,
+            },
+          };
+        }
 
-        return {
-          kind: "created" as const,
-          bookingId: booking.id,
-          receipt: {
-            bookingId: booking.id,
-            status: "confirmed" as const,
-            customerName: user.name,
-            barbershopName: barbershop.name,
-            barberName: barber.name,
-            barbershopPhone: primaryBarbershopPhone,
-            bookingStartAt: startAt.toISOString(),
-            serviceNames: services.map((service) => service.name),
-            totalPriceInCents,
-          },
-        };
+        returnValidationErrors(inputSchema, {
+          _errors: [directResult.error],
+        });
       }
 
       if (totalPriceInCents < 1) {
@@ -292,10 +134,12 @@ export const createBookingCheckoutSession = criticalActionClient
         apiVersion: "2026-01-28.clover",
       });
 
+      const primaryServiceId = uniqueServiceIds[0]!;
       const serviceDescription = services
         .map((service) => service.name)
         .join(", ")
         .slice(0, 300);
+      const endAt = new Date(startAt.getTime() + totalDurationMinutes * 60_000);
       const successUrl = new URL("/bookings", appBaseUrl);
       successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
       const cancelUrl = new URL("/bookings", appBaseUrl);
@@ -309,8 +153,8 @@ export const createBookingCheckoutSession = criticalActionClient
           success_url: successUrl.toString(),
           cancel_url: cancelUrl.toString(),
           metadata: {
-            barbershopId: barbershop.id,
-            barberId: barber.id,
+            barbershopId: validatedBarbershopId,
+            barberId: validatedBarberId,
             userId: user.id,
             serviceIdsJson: JSON.stringify(uniqueServiceIds),
             primaryServiceId,
@@ -326,8 +170,8 @@ export const createBookingCheckoutSession = criticalActionClient
                 currency: "brl",
                 unit_amount: totalPriceInCents,
                 product_data: {
-                  name: `${barbershop.name} - Agendamento com ${services.length} serviços`,
-                  description: `Barbeiro: ${barber.name}. Serviços: ${serviceDescription}`,
+                  name: `${barbershopName} - Agendamento com ${services.length} serviços`,
+                  description: `Barbeiro: ${barberName}. Serviços: ${serviceDescription}`,
                 },
               },
               quantity: 1,
@@ -337,8 +181,8 @@ export const createBookingCheckoutSession = criticalActionClient
       } catch (error) {
         console.error("[createBookingCheckoutSession] Stripe checkout error.", {
           error,
-          barbershopId: barbershop.id,
-          barberId: barber.id,
+          barbershopId: validatedBarbershopId,
+          barberId: validatedBarberId,
         });
         returnValidationErrors(inputSchema, {
           _errors: [
@@ -347,59 +191,26 @@ export const createBookingCheckoutSession = criticalActionClient
         });
       }
 
-      let pendingBooking: { id: string };
+      const pendingResult = await createCheckoutPendingBooking({
+        barbershopId,
+        barberId,
+        serviceIds: uniqueServiceIds,
+        startAt,
+        userId: user.id,
+        stripeEnabled,
+        paymentMethod,
+        stripeSessionId: checkoutSession!.id,
+      });
 
-      try {
-        pendingBooking = await prisma.booking.create({
-          data: {
-            stripeSessionId: checkoutSession.id,
-            serviceId: primaryServiceId,
-            date: startAt.toISOString(),
-            startAt: startAt.toISOString(),
-            endAt: endAt.toISOString(),
-            totalDurationMinutes,
-            totalPriceInCents,
-            userId: user.id,
-            barberId: barber.id,
-            barbershopId: barbershop.id,
-            paymentMethod: initialPaymentState.paymentMethod,
-            paymentStatus: initialPaymentState.paymentStatus,
-            services: {
-              createMany: {
-                data: uniqueServiceIds.map((serviceId) => ({
-                  serviceId,
-                })),
-              },
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
-      } catch (error) {
-        console.error(
-          "[createBookingCheckoutSession] Failed to create pending booking.",
-          {
-            error,
-            checkoutSessionId: checkoutSession.id,
-            barbershopId: barbershop.id,
-            barberId: barber.id,
-            userId: user.id,
-          },
-        );
-
+      if (!pendingResult.ok) {
         try {
-          await stripe.checkout.sessions.expire(checkoutSession.id);
+          await stripe.checkout.sessions.expire(checkoutSession!.id);
         } catch (expireError) {
           console.error(
             "[createBookingCheckoutSession] Failed to expire Stripe session after pending booking error.",
-            {
-              expireError,
-              checkoutSessionId: checkoutSession.id,
-            },
+            { expireError, checkoutSessionId: checkoutSession!.id },
           );
         }
-
         returnValidationErrors(inputSchema, {
           _errors: [
             "Não foi possível reservar este horário agora. Tente novamente em alguns instantes.",
@@ -407,19 +218,15 @@ export const createBookingCheckoutSession = criticalActionClient
         });
       }
 
-      if (!checkoutSession.url) {
+      if (!checkoutSession!.url) {
         try {
-          await stripe.checkout.sessions.expire(checkoutSession.id);
+          await stripe.checkout.sessions.expire(checkoutSession!.id);
         } catch (expireError) {
           console.error(
             "[createBookingCheckoutSession] Failed to expire Stripe session without checkout url.",
-            {
-              expireError,
-              checkoutSessionId: checkoutSession.id,
-            },
+            { expireError, checkoutSessionId: checkoutSession!.id },
           );
         }
-
         returnValidationErrors(inputSchema, {
           _errors: [
             "Não foi possível iniciar o pagamento agora. Tente novamente em alguns instantes.",
@@ -429,9 +236,9 @@ export const createBookingCheckoutSession = criticalActionClient
 
       return {
         kind: "stripe" as const,
-        bookingId: pendingBooking.id,
-        sessionId: checkoutSession.id,
-        checkoutUrl: checkoutSession.url,
+        bookingId: pendingResult.bookingId,
+        sessionId: checkoutSession!.id,
+        checkoutUrl: checkoutSession!.url,
       };
     },
   );

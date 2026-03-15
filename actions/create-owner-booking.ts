@@ -2,29 +2,31 @@
 
 import { getOwnerBarbershopContextByOwnerId } from "@/data/barbershops";
 import { protectedActionClient } from "@/lib/action-client";
-import {
-  calculateBookingTotals,
-  checkTimeSlotCollision,
-  deduplicateServiceIds,
-  getBookingDurationMinutes,
-  getBookingStartDate,
-  hasInvalidServiceData,
-} from "@/lib/booking-mutation-helpers";
-import {
-  ACTIVE_BOOKING_PAYMENT_WHERE,
-  UNPAID_PAYMENT_STATUS,
-} from "@/lib/booking-payment";
-import {
-  BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingMinuteOfDay,
-  isBookingDateTimeAtOrBeforeNowWithBuffer,
-} from "@/lib/booking-time";
-import { getDayWindow } from "@/lib/booking-mutation-helpers";
-import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
-import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
+import { createOwnerBooking as createOwnerBookingService } from "@/lib/booking-creation-service";
 import { prisma } from "@/lib/prisma";
 import { returnValidationErrors } from "next-safe-action";
 import { z } from "zod";
+
+const OWNER_BOOKING_RETURN_SELECT = {
+  id: true,
+  date: true,
+  totalPriceInCents: true,
+  paymentStatus: true,
+  barber: { select: { name: true } },
+  services: {
+    select: {
+      service: {
+        select: {
+          name: true,
+          priceInCents: true,
+          durationInMinutes: true,
+        },
+      },
+    },
+  },
+  barbershop: { select: { name: true, phones: true } },
+  user: { select: { name: true, phone: true } },
+} as const;
 
 const inputSchema = z.object({
   clientUserId: z.string().trim().min(1, "Cliente inválido."),
@@ -54,254 +56,24 @@ export const createOwnerBooking = protectedActionClient
         });
       }
 
-      if (
-        isBookingDateTimeAtOrBeforeNowWithBuffer(
-          date,
-          BOOKING_SLOT_BUFFER_MINUTES,
-        )
-      ) {
-        returnValidationErrors(inputSchema, {
-          _errors: [
-            "Data e horário selecionados já passaram ou estão muito próximos do horário atual.",
-          ],
-        });
-      }
-
-      const uniqueServiceIds = deduplicateServiceIds(serviceIds);
-
-      if (uniqueServiceIds.length === 0) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Selecione ao menos um serviço."],
-        });
-      }
-
-      const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
-        getDayWindow(date);
-
-      const [clientUser, clientHistoryBooking, barber, services, barbershop] =
-        await Promise.all([
-          prisma.user.findUnique({
-            where: {
-              id: clientUserId,
-            },
-            select: {
-              id: true,
-            },
-          }),
-          prisma.booking.findFirst({
-            where: {
-              barbershopId: ownerBarbershop.id,
-              userId: clientUserId,
-            },
-            select: {
-              id: true,
-            },
-          }),
-          prisma.barber.findFirst({
-            where: {
-              id: barberId,
-              barbershopId: ownerBarbershop.id,
-            },
-            select: {
-              id: true,
-            },
-          }),
-          prisma.barbershopService.findMany({
-            where: {
-              id: {
-                in: uniqueServiceIds,
-              },
-              barbershopId: ownerBarbershop.id,
-              deletedAt: null,
-            },
-            select: {
-              id: true,
-              name: true,
-              priceInCents: true,
-              durationInMinutes: true,
-            },
-          }),
-          prisma.barbershop.findUnique({
-            where: {
-              id: ownerBarbershop.id,
-            },
-            select: {
-              id: true,
-            },
-          }),
-        ]);
-
-      if (!barbershop) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Barbearia não encontrada."],
-        });
-      }
-
-      if (!clientUser) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Cliente não encontrado."],
-        });
-      }
-
-      if (!clientHistoryBooking) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Selecione um cliente que já tenha atendido nesta barbearia."],
-        });
-      }
-
-      if (!barber) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Barbeiro não encontrado para esta barbearia."],
-        });
-      }
-
-      if (services.length !== uniqueServiceIds.length) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Um ou mais serviços selecionados não estão disponíveis."],
-        });
-      }
-
-      const hasInvalidService = services.some((service) =>
-        hasInvalidServiceData(service),
-      );
-
-      if (hasInvalidService) {
-        returnValidationErrors(inputSchema, {
-          _errors: [
-            "Um ou mais serviços estão temporariamente indisponíveis para agendamento.",
-          ],
-        });
-      }
-
-      const { totalDurationMinutes, totalPriceInCents } =
-        calculateBookingTotals(services);
-
-      if (totalDurationMinutes <= 0) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Não foi possível calcular a duração total do agendamento."],
-        });
-      }
-
-      const bookings = await prisma.booking.findMany({
-        where: {
-          barbershopId: ownerBarbershop.id,
-          AND: [
-            {
-              OR: [{ barberId: barber.id }, { barberId: null }],
-            },
-            ACTIVE_BOOKING_PAYMENT_WHERE,
-          ],
-          date: {
-            gte: selectedDateStart,
-            lt: selectedDateEndExclusive,
-          },
-          cancelledAt: null,
-        },
-        select: {
-          startAt: true,
-          totalDurationMinutes: true,
-          date: true,
-          service: {
-            select: {
-              durationInMinutes: true,
-            },
-          },
-        },
+      const result = await createOwnerBookingService({
+        barbershopId: ownerBarbershop.id,
+        barberId,
+        serviceIds,
+        date,
+        clientUserId,
       });
 
-      const hasCollision = checkTimeSlotCollision(
-        getBookingMinuteOfDay(date),
-        totalDurationMinutes,
-        bookings,
-      );
-
-      if (hasCollision) {
+      if (!result.ok) {
         returnValidationErrors(inputSchema, {
-          _errors: ["Horário indisponível para este barbeiro."],
+          _errors: [result.error],
         });
       }
 
-      const endAt = new Date(date.getTime() + totalDurationMinutes * 60_000);
-
-      const createdBooking = await prisma.booking.create({
-        data: {
-          serviceId: uniqueServiceIds[0]!,
-          date: date.toISOString(),
-          startAt: date.toISOString(),
-          endAt: endAt.toISOString(),
-          totalDurationMinutes,
-          totalPriceInCents,
-          userId: clientUser.id,
-          barberId: barber.id,
-          barbershopId: ownerBarbershop.id,
-          paymentMethod: "IN_PERSON",
-          paymentStatus: UNPAID_PAYMENT_STATUS,
-          services: {
-            createMany: {
-              data: uniqueServiceIds.map((serviceId) => ({
-                serviceId,
-              })),
-            },
-          },
-        },
-        select: {
-          id: true,
-          date: true,
-          totalPriceInCents: true,
-          paymentStatus: true,
-          barber: {
-            select: {
-              name: true,
-            },
-          },
-          services: {
-            select: {
-              service: {
-                select: {
-                  name: true,
-                  priceInCents: true,
-                  durationInMinutes: true,
-                },
-              },
-            },
-          },
-          barbershop: {
-            select: {
-              name: true,
-              phones: true,
-            },
-          },
-          user: {
-            select: {
-              name: true,
-              phone: true,
-            },
-          },
-        },
+      const createdBooking = await prisma.booking.findUniqueOrThrow({
+        where: { id: result.bookingId },
+        select: OWNER_BOOKING_RETURN_SELECT,
       });
-
-      try {
-        await scheduleBookingNotificationJobs(createdBooking.id);
-      } catch (error) {
-        console.error(
-          "[createOwnerBooking] Falha ao agendar notificações para o booking criado.",
-          {
-            error,
-            bookingId: createdBooking.id,
-            ownerUserId: user.id,
-          },
-        );
-      }
-
-      try {
-        revalidateBookingSurfaces();
-      } catch (error) {
-        console.error("[createOwnerBooking] Falha ao revalidar superfícies.", {
-          error,
-          bookingId: createdBooking.id,
-          ownerUserId: user.id,
-        });
-      }
 
       return {
         ...createdBooking,

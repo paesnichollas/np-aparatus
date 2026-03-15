@@ -1,9 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { parseAbsoluteHttpUrl } from "@/lib/app-url";
-import { CONFIRMED_BOOKING_PAYMENT_WHERE } from "@/lib/booking-payment";
 import { buildPublicSlugCandidate, getPublicSlugBase } from "@/lib/public-slug";
-import { reconcilePendingBookingsForBarbershop } from "@/lib/stripe-booking-reconciliation";
 import { createShareLinkToken } from "@/lib/share-link-token";
 import { unstable_cache } from "next/cache";
 import {
@@ -117,31 +115,8 @@ const BARBERSHOP_LIST_ITEM_SELECT = {
   ratingsCount: true,
 } satisfies Prisma.BarbershopSelect;
 
-const BARBERSHOP_SEARCH_SELECT = {
-  ...BARBERSHOP_LIST_ITEM_SELECT,
-  description: true,
-  services: {
-    where: {
-      deletedAt: null,
-    },
-    select: {
-      name: true,
-      description: true,
-    },
-  },
-  barbers: {
-    select: {
-      name: true,
-    },
-  },
-} satisfies Prisma.BarbershopSelect;
-
 type BarbershopListRecord = Prisma.BarbershopGetPayload<{
   select: typeof BARBERSHOP_LIST_ITEM_SELECT;
-}>;
-
-type BarbershopSearchRecord = Prisma.BarbershopGetPayload<{
-  select: typeof BARBERSHOP_SEARCH_SELECT;
 }>;
 
 const mapBarbershopListItem = (
@@ -157,30 +132,6 @@ const mapBarbershopListItem = (
     avgRating: barbershop.avgRating,
     ratingsCount: barbershop.ratingsCount,
   };
-};
-
-const normalizeSearchText = (value: string) => {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-};
-
-const matchesBarbershopSearchTerm = (
-  barbershop: BarbershopSearchRecord,
-  normalizedSearchTerm: string,
-) => {
-  const searchableText = [
-    barbershop.name,
-    barbershop.description,
-    barbershop.address,
-    ...barbershop.services.flatMap((service) => {
-      return [service.name, service.description];
-    }),
-    ...barbershop.barbers.map((barber) => barber.name),
-  ]
-    .filter((value): value is string => Boolean(value && value.trim()))
-    .map(normalizeSearchText)
-    .join(" ");
-
-  return searchableText.includes(normalizedSearchTerm);
 };
 
 const normalizeListLimit = (limit: number, fallback: number) => {
@@ -571,165 +522,110 @@ export const resolveBarbershopByShareToken = async (shareToken: string) => {
   return null;
 };
 
-export const getBarbershopsByServiceName = async (serviceName: string) => {
+const DEFAULT_SEARCH_LIMIT = 24;
+
+export const getBarbershopsByServiceName = async (
+  serviceName: string,
+  limit = DEFAULT_SEARCH_LIMIT,
+) => {
   const normalizedServiceName = serviceName.trim();
 
   if (!normalizedServiceName) {
     return [];
   }
 
-  const normalizedSearchTerm = normalizeSearchText(normalizedServiceName);
-
-  if (!normalizedSearchTerm) {
-    return [];
-  }
-
   const barbershops = await prisma.barbershop.findMany({
-    select: BARBERSHOP_SEARCH_SELECT,
+    select: BARBERSHOP_LIST_ITEM_SELECT,
     where: {
       isActive: true,
       exclusiveBarber: false,
+      OR: [
+        { name: { contains: normalizedServiceName, mode: "insensitive" } },
+        { description: { contains: normalizedServiceName, mode: "insensitive" } },
+        { address: { contains: normalizedServiceName, mode: "insensitive" } },
+        {
+          services: {
+            some: {
+              deletedAt: null,
+              OR: [
+                { name: { contains: normalizedServiceName, mode: "insensitive" } },
+                {
+                  description: {
+                    contains: normalizedServiceName,
+                    mode: "insensitive",
+                  },
+                },
+              ],
+            },
+          },
+        },
+        {
+          barbers: {
+            some: {
+              name: { contains: normalizedServiceName, mode: "insensitive" },
+            },
+          },
+        },
+      ],
     },
-    orderBy: {
-      name: "asc",
-    },
+    orderBy: { name: "asc" },
+    take: normalizeListLimit(limit, DEFAULT_SEARCH_LIMIT),
   });
 
-  return barbershops
-    .filter((barbershop) =>
-      matchesBarbershopSearchTerm(barbershop, normalizedSearchTerm),
-    )
-    .map(mapBarbershopListItem);
+  return barbershops.map(mapBarbershopListItem);
 };
 
-export const getAdminBarbershopByUserId = async (userId: string) => {
-  const ownedBarbershop = await prisma.barbershop.findFirst({
-    where: {
-      ownerId: userId,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!ownedBarbershop) {
-    return null;
-  }
-
-  try {
-    await reconcilePendingBookingsForBarbershop(ownedBarbershop.id);
-  } catch (error) {
-    console.error(
-      "[getAdminBarbershopByUserId] Failed to reconcile pending bookings for barbershop.",
-      {
-        error,
-        userId,
-        barbershopId: ownedBarbershop.id,
-      },
-    );
-  }
-
-  const barbershop = await prisma.barbershop.findUnique({
-    where: {
-      id: ownedBarbershop.id,
-    },
+const OWNER_BARBERSHOP_OVERVIEW_SELECT = {
+  id: true,
+  name: true,
+  address: true,
+  description: true,
+  imageUrl: true,
+  phones: true,
+  slug: true,
+  stripeEnabled: true,
+  exclusiveBarber: true,
+  plan: true,
+  homePremiumTitle: true,
+  homePremiumDescription: true,
+  homePremiumChips: true,
+  barbers: {
     select: {
       id: true,
       name: true,
-      address: true,
-      description: true,
       imageUrl: true,
-      phones: true,
-      slug: true,
-      stripeEnabled: true,
-      exclusiveBarber: true,
-      plan: true,
-      homePremiumTitle: true,
-      homePremiumDescription: true,
-      homePremiumChips: true,
-      barbers: {
-        select: {
-          id: true,
-          name: true,
-          imageUrl: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-      },
-      openingHours: {
-        select: {
-          dayOfWeek: true,
-          openMinute: true,
-          closeMinute: true,
-          closed: true,
-        },
-        orderBy: {
-          dayOfWeek: "asc",
-        },
-      },
-      whatsappSettings: {
-        select: {
-          sendBookingConfirmation: true,
-          sendReminder24h: true,
-          sendReminder1h: true,
-          updatedAt: true,
-        },
-      },
-      bookings: {
-        where: {
-          OR: [
-            CONFIRMED_BOOKING_PAYMENT_WHERE,
-            {
-              cancelledAt: {
-                not: null,
-              },
-            },
-          ],
-        },
-        select: {
-          id: true,
-          date: true,
-          startAt: true,
-          cancelledAt: true,
-          paymentMethod: true,
-          paymentStatus: true,
-          stripeChargeId: true,
-          totalPriceInCents: true,
-          barber: {
-            select: {
-              name: true,
-            },
-          },
-          service: {
-            select: {
-              name: true,
-            },
-          },
-          services: {
-            select: {
-              service: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          user: {
-            select: {
-              name: true,
-              phone: true,
-            },
-          },
-        },
-        orderBy: {
-          date: "desc",
-        },
-      },
     },
+    orderBy: { name: "asc" as const },
+  },
+  openingHours: {
+    select: {
+      dayOfWeek: true,
+      openMinute: true,
+      closeMinute: true,
+      closed: true,
+    },
+    orderBy: { dayOfWeek: "asc" as const },
+  },
+  whatsappSettings: {
+    select: {
+      sendBookingConfirmation: true,
+      sendReminder24h: true,
+      sendReminder1h: true,
+      updatedAt: true,
+    },
+  },
+} as const;
+
+export const getOwnerBarbershopOverview = async (userId: string) => {
+  const barbershop = await prisma.barbershop.findFirst({
+    where: { ownerId: userId },
+    select: OWNER_BARBERSHOP_OVERVIEW_SELECT,
   });
+
   return barbershop;
 };
+
+export const getAdminBarbershopByUserId = getOwnerBarbershopOverview;
 
 export const getAdminBarbershopIdByUserId = async (userId: string) => {
   const barbershop = await prisma.barbershop.findFirst({

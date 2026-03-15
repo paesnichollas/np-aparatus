@@ -1,25 +1,7 @@
 "use server";
 
+import { createCustomerBooking } from "@/lib/booking-creation-service";
 import { criticalActionClient } from "@/lib/action-client";
-import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
-import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
-
-import {
-  BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingMinuteOfDay,
-  isBookingDateTimeAtOrBeforeNowWithBuffer,
-} from "@/lib/booking-time";
-import { getDayWindow } from "@/lib/booking-mutation-helpers";
-import {
-  checkTimeSlotCollision,
-  getBookingDurationMinutes,
-  getBookingStartDate,
-  hasInvalidServiceData,
-} from "@/lib/booking-mutation-helpers";
-import {
-  ACTIVE_BOOKING_PAYMENT_WHERE,
-  resolveInitialPaymentState,
-} from "@/lib/booking-payment";
 import { prisma } from "@/lib/prisma";
 import { returnValidationErrors } from "next-safe-action";
 import { z } from "zod";
@@ -34,147 +16,21 @@ const inputSchema = z.object({
 export const createBooking = criticalActionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: { barbershopId, serviceId, barberId, date }, ctx: { user } }) => {
-    if (isBookingDateTimeAtOrBeforeNowWithBuffer(date, BOOKING_SLOT_BUFFER_MINUTES)) {
-      returnValidationErrors(inputSchema, {
-        _errors: [
-          "Data e horário selecionados já passaram ou estão muito próximos do horário atual.",
-        ],
-      });
-    }
-
-    const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
-      getDayWindow(date);
-
-    const service = await prisma.barbershopService.findFirst({
-      where: {
-        id: serviceId,
-        barbershopId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        name: true,
-        priceInCents: true,
-        barbershopId: true,
-        durationInMinutes: true,
-        barbershop: {
-          select: {
-            isActive: true,
-          },
-        },
-      },
+    const result = await createCustomerBooking({
+      barbershopId,
+      serviceId,
+      barberId,
+      date,
+      userId: user.id,
     });
 
-    if (!service) {
+    if (!result.ok) {
       returnValidationErrors(inputSchema, {
-        _errors: ["Serviço não encontrado. Por favor, selecione outro serviço."],
+        _errors: [result.error],
       });
     }
 
-    if (hasInvalidServiceData(service)) {
-      console.error("[createBooking] Invalid service data.", {
-        serviceId,
-        service,
-      });
-      returnValidationErrors(inputSchema, {
-        _errors: [
-          "Este serviço está temporariamente indisponível para agendamento. Tente novamente mais tarde.",
-        ],
-      });
-    }
-
-    if (!service.barbershop.isActive) {
-      returnValidationErrors(inputSchema, {
-        _errors: ["Barbearia indisponível para agendamentos."],
-      });
-    }
-
-    const barber = await prisma.barber.findFirst({
-      where: {
-        id: barberId,
-        barbershopId,
-      },
-      select: {
-        id: true,
-      },
+    return prisma.booking.findUniqueOrThrow({
+      where: { id: result.bookingId },
     });
-
-    if (!barber) {
-      returnValidationErrors(inputSchema, {
-        _errors: ["Barbeiro não encontrado para esta barbearia."],
-      });
-    }
-
-    const bookings = await prisma.booking.findMany({
-      where: {
-        barbershopId,
-        AND: [
-          {
-            OR: [{ barberId: barber.id }, { barberId: null }],
-          },
-          ACTIVE_BOOKING_PAYMENT_WHERE,
-        ],
-        date: {
-          gte: selectedDateStart,
-          lt: selectedDateEndExclusive,
-        },
-        cancelledAt: null,
-      },
-      select: {
-        startAt: true,
-        totalDurationMinutes: true,
-        date: true,
-        service: {
-          select: {
-            durationInMinutes: true,
-          },
-        },
-      },
-    });
-
-    const hasCollision = checkTimeSlotCollision(
-      getBookingMinuteOfDay(date),
-      service.durationInMinutes,
-      bookings,
-    );
-
-    if (hasCollision) {
-      returnValidationErrors(inputSchema, {
-        _errors: ["Data e hora selecionadas já estão agendadas."],
-      });
-    }
-
-    const initialPaymentState = resolveInitialPaymentState({
-      stripeEnabled: false,
-      requestedPaymentMethod: "IN_PERSON",
-      allowStripeCheckout: false,
-    });
-
-    const booking = await prisma.booking.create({
-      data: {
-        serviceId,
-        date: date.toISOString(),
-        startAt: date.toISOString(),
-        endAt: new Date(
-          date.getTime() + service.durationInMinutes * 60_000,
-        ).toISOString(),
-        totalDurationMinutes: service.durationInMinutes,
-        totalPriceInCents: service.priceInCents,
-        userId: user.id,
-        barberId: barber.id,
-        barbershopId,
-        paymentMethod: initialPaymentState.paymentMethod,
-        paymentStatus: initialPaymentState.paymentStatus,
-        services: {
-          create: {
-            serviceId,
-          },
-        },
-      },
-    });
-
-    await scheduleBookingNotificationJobs(booking.id);
-    revalidateBookingSurfaces();
-
-    return booking;
   });

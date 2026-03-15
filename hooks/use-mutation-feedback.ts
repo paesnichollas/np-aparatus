@@ -1,6 +1,6 @@
 "use client";
 
-import { getActionErrorMessage } from "@/lib/action-errors";
+import { getValidationErrorMessageWithNested } from "@/lib/action-errors";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -27,11 +27,13 @@ export const useMutationFeedback = () => {
     ): result is ActionResult & { data: NonNullable<ActionResult["data"]> } => {
       const { fallbackMessage, successMessage, onSuccess } = options;
 
-      const errorMessage = getActionErrorMessage(
+      const validationMessage = getValidationErrorMessageWithNested(
         result.validationErrors,
-        result.serverError,
-        fallbackMessage,
       );
+
+      const errorMessage =
+        validationMessage ??
+        (result.serverError ? fallbackMessage : null);
 
       if (errorMessage) {
         toast.error(errorMessage);

@@ -18,11 +18,14 @@ import {
 import { PageSectionContent, PageSectionTitle } from "@/components/ui/page";
 import {
   getBarbershopShareLink,
-  getOwnerBarbershopByUserId,
+  getOwnerBarbershopOverview,
 } from "@/data/barbershops";
+import {
+  getOwnerFutureBookings,
+  getOwnerPastBookingsPaginated,
+} from "@/data/bookings";
 import { getServicesByBarbershopId } from "@/data/services";
 import { SHOW_CHATBOT_ENTRYPOINTS } from "@/constants/feature-flags";
-import { getBookingStartDate } from "@/lib/booking-calculations";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
 import { formatPhoneBRDisplay } from "@/lib/phone";
 import { requireOwnerOrAdmin } from "@/lib/rbac";
@@ -47,7 +50,7 @@ const OwnerPage = async () => {
   const requestHeaders = await headers();
   const user = await requireOwnerOrAdmin();
 
-  const barbershop = await getOwnerBarbershopByUserId(user.id);
+  const barbershop = await getOwnerBarbershopOverview(user.id);
 
   if (!barbershop) {
     return (
@@ -75,33 +78,22 @@ const OwnerPage = async () => {
     );
   }
 
-  const services = await getServicesByBarbershopId(barbershop.id);
+  const [services, shareLink, futureBookings, pastBookingsResult] =
+    await Promise.all([
+      getServicesByBarbershopId(barbershop.id),
+      getBarbershopShareLink(
+        barbershop.id,
+        getRequestOrigin(requestHeaders),
+      ),
+      getOwnerFutureBookings(barbershop.id),
+      getOwnerPastBookingsPaginated(barbershop.id),
+    ]);
+
   const barbershopImageUrl = resolveBarbershopImageUrl(barbershop.imageUrl);
   const displayPhones = barbershop.phones
     .map((phone) => formatPhoneBRDisplay(phone))
     .filter((phone) => phone.length > 0);
-  const shareLink = await getBarbershopShareLink(
-    barbershop.id,
-    getRequestOrigin(requestHeaders),
-  );
-
-  const now = new Date();
-  const futureBookings = barbershop.bookings
-    .filter((booking) => getBookingStartDate(booking) >= now)
-    .sort((firstBooking, secondBooking) => {
-      return (
-        getBookingStartDate(firstBooking).getTime() -
-        getBookingStartDate(secondBooking).getTime()
-      );
-    });
-  const pastBookings = barbershop.bookings
-    .filter((booking) => getBookingStartDate(booking) < now)
-    .sort((firstBooking, secondBooking) => {
-      return (
-        getBookingStartDate(secondBooking).getTime() -
-        getBookingStartDate(firstBooking).getTime()
-      );
-    });
+  const pastBookings = pastBookingsResult.bookings;
 
   return (
     <>
