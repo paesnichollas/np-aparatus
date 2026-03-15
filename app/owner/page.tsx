@@ -28,26 +28,13 @@ import { getServicesByBarbershopId } from "@/data/services";
 import { SHOW_CHATBOT_ENTRYPOINTS } from "@/constants/feature-flags";
 import { resolveBarbershopImageUrl } from "@/lib/image-fallback";
 import { formatPhoneBRDisplay } from "@/lib/phone";
+import { resolveAppBaseUrl } from "@/lib/app-url";
 import { requireOwnerOrAdmin } from "@/lib/rbac";
 import { BarChart3, MessageCircleMore, Phone } from "lucide-react";
-import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 
-const getRequestOrigin = (requestHeaders: Headers) => {
-  const host =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-
-  if (!host) {
-    return null;
-  }
-
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  return `${protocol}://${host}`;
-};
-
 const OwnerPage = async () => {
-  const requestHeaders = await headers();
   const user = await requireOwnerOrAdmin();
 
   const barbershop = await getOwnerBarbershopOverview(user.id);
@@ -78,13 +65,11 @@ const OwnerPage = async () => {
     );
   }
 
+  const baseUrl = await resolveAppBaseUrl();
   const [services, shareLink, futureBookings, pastBookingsResult] =
     await Promise.all([
       getServicesByBarbershopId(barbershop.id),
-      getBarbershopShareLink(
-        barbershop.id,
-        getRequestOrigin(requestHeaders),
-      ),
+      getBarbershopShareLink(barbershop.id, baseUrl?.toString() ?? undefined),
       getOwnerFutureBookings(barbershop.id),
       getOwnerPastBookingsPaginated(barbershop.id),
     ]);

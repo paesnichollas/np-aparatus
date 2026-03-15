@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/card";
 import { PageSectionContent, PageSectionTitle } from "@/components/ui/page";
 import { SHOW_CHATBOT_ENTRYPOINTS } from "@/constants/feature-flags";
-import { adminListBarbershops } from "@/data/admin/barbershops";
+import { adminListBarbershopOptions } from "@/data/admin/barbershops";
 import { getOwnerBarbershopIdByUserId } from "@/data/barbershops";
 import { isAdmin, requireOwnerOrAdmin } from "@/lib/rbac";
+import { parseStringParam } from "@/lib/search-params";
 import Link from "next/link";
 
 interface OwnerReportsPageProps {
@@ -20,29 +21,13 @@ interface OwnerReportsPageProps {
   }>;
 }
 
-const parseStringParam = (value: string | string[] | undefined) => {
-  if (!value) {
-    return "";
-  }
-
-  return Array.isArray(value) ? value[0] ?? "" : value;
-};
-
 const OwnerReportsPage = async ({ searchParams }: OwnerReportsPageProps) => {
   const user = await requireOwnerOrAdmin();
   const resolvedSearchParams = await searchParams;
   const requestedBarbershopId = parseStringParam(resolvedSearchParams.barbershopId);
 
   if (isAdmin(user.role)) {
-    const barbershopsResult = await adminListBarbershops({
-      page: 1,
-      pageSize: 200,
-    });
-
-    const barbershopOptions = barbershopsResult.items.map((barbershop) => ({
-      id: barbershop.id,
-      name: barbershop.name,
-    }));
+    const barbershopOptions = await adminListBarbershopOptions();
 
     if (barbershopOptions.length === 0) {
       return (

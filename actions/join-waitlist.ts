@@ -5,111 +5,60 @@ import { criticalActionClient } from "@/lib/action-client";
 import { getAvailableBookingTimeSlots } from "@/lib/booking-availability";
 import { resolveInitialPaymentState } from "@/lib/booking-payment";
 import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
-import { getBookingDateKey, parseBookingDateOnly } from "@/lib/booking-time";
+import { getBookingDateKey } from "@/lib/booking-time";
 import { prisma } from "@/lib/prisma";
+import {
+  computeWaitlistPosition,
+  findActiveWaitlistEntry,
+  isWaitlistDateDayInPast,
+  parseWaitlistDateDay,
+  resolveWaitlistContext,
+  WAITLIST_JOIN_INPUT_SCHEMA,
+} from "@/lib/waitlist-shared";
 import { returnValidationErrors } from "next-safe-action";
-import { z } from "zod";
-
-const inputSchema = z.object({
-  barbershopId: z.uuid(),
-  barberId: z.uuid(),
-  serviceId: z.uuid(),
-  dateDay: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/),
-  paymentMethod: z.enum(["STRIPE", "IN_PERSON"]).optional(),
-});
 
 export const joinWaitlist = criticalActionClient
-  .inputSchema(inputSchema)
+  .inputSchema(WAITLIST_JOIN_INPUT_SCHEMA)
   .action(
     async ({
       parsedInput: { barbershopId, barberId, serviceId, dateDay, paymentMethod },
       ctx: { user },
     }) => {
-      const parsedDateDay = parseBookingDateOnly(dateDay);
+      const parsedDateDay = parseWaitlistDateDay(dateDay);
       if (!parsedDateDay) {
-        returnValidationErrors(inputSchema, {
+        returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
           _errors: ["Dia inválido para fila de espera."],
         });
       }
 
-      const selectedDateKey = getBookingDateKey(parsedDateDay);
-      const todayDateKey = getBookingDateKey(new Date());
-
-      if (selectedDateKey < todayDateKey) {
-        returnValidationErrors(inputSchema, {
+      if (isWaitlistDateDayInPast(parsedDateDay)) {
+        returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
           _errors: ["Não é possível entrar na fila para dias passados."],
         });
       }
 
-      const [barbershop, barber, service] = await Promise.all([
-        prisma.barbershop.findUnique({
-          where: {
-            id: barbershopId,
-          },
-          select: {
-            id: true,
-            isActive: true,
-            stripeEnabled: true,
-          },
-        }),
-        prisma.barber.findFirst({
-          where: {
-            id: barberId,
-            barbershopId,
-          },
-          select: {
-            id: true,
-          },
-        }),
-        prisma.barbershopService.findFirst({
-          where: {
-            id: serviceId,
-            barbershopId,
-            deletedAt: null,
-          },
-          select: {
-            id: true,
-          },
-        }),
-      ]);
+      const context = await resolveWaitlistContext({
+        barbershopId,
+        barberId,
+        serviceId,
+      });
 
-      if (!barbershop || !barbershop.isActive) {
-        returnValidationErrors(inputSchema, {
+      if (!context || !context.barbershop.isActive) {
+        returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
           _errors: ["Barbearia indisponível para fila de espera."],
         });
       }
 
-      if (!barber) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Barbeiro não encontrado para esta barbearia."],
-        });
-      }
-
-      if (!service) {
-        returnValidationErrors(inputSchema, {
-          _errors: ["Serviço não encontrado para esta barbearia."],
-        });
-      }
-
-      const hasExistingActiveEntry = await prisma.waitlistEntry.findFirst({
-        where: {
-          userId: user.id,
-          barbershopId,
-          barberId,
-          serviceId,
-          dateDay: parsedDateDay,
-          status: "ACTIVE",
-        },
-        select: {
-          id: true,
-        },
-      });
+      const hasExistingActiveEntry = await findActiveWaitlistEntry(
+        user.id,
+        barbershopId,
+        barberId,
+        serviceId,
+        parsedDateDay,
+      );
 
       if (hasExistingActiveEntry) {
-        returnValidationErrors(inputSchema, {
+        returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
           _errors: ["Você já está na fila de espera para este dia."],
         });
       }
@@ -122,16 +71,18 @@ export const joinWaitlist = criticalActionClient
       });
 
       if (availableTimeSlots.length > 0) {
-        returnValidationErrors(inputSchema, {
+        returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
           _errors: ["Ainda há horários disponíveis. Selecione um horário."],
         });
       }
 
       const initialPaymentState = resolveInitialPaymentState({
-        stripeEnabled: barbershop.stripeEnabled,
+        stripeEnabled: context.barbershop.stripeEnabled,
         requestedPaymentMethod: paymentMethod ?? "IN_PERSON",
         allowStripeCheckout: true,
       });
+
+      const selectedDateKey = getBookingDateKey(parsedDateDay);
 
       try {
         const createdEntry = await prisma.$transaction(async (tx) => {
@@ -151,28 +102,14 @@ export const joinWaitlist = criticalActionClient
             },
           });
 
-          const position = await tx.waitlistEntry.count({
-            where: {
-              barbershopId,
-              barberId,
-              serviceId,
-              dateDay: parsedDateDay,
-              status: "ACTIVE",
-              OR: [
-                {
-                  createdAt: {
-                    lt: entry.createdAt,
-                  },
-                },
-                {
-                  createdAt: entry.createdAt,
-                  id: {
-                    lte: entry.id,
-                  },
-                },
-              ],
-            },
-          });
+          const position = await computeWaitlistPosition(
+            tx,
+            barbershopId,
+            barberId,
+            serviceId,
+            parsedDateDay,
+            entry,
+          );
 
           return {
             entryId: entry.id,
@@ -193,7 +130,7 @@ export const joinWaitlist = criticalActionClient
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
         ) {
-          returnValidationErrors(inputSchema, {
+          returnValidationErrors(WAITLIST_JOIN_INPUT_SCHEMA, {
             _errors: ["Você já possui uma entrada ativa para este dia."],
           });
         }

@@ -1,6 +1,6 @@
 import { type UserRole } from "@/generated/prisma/client";
 
-import OwnersManagementTableClient from "@/components/admin/owners-management-table-client";
+import OwnersManagementTable from "@/components/admin/owners-management-table";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,9 +10,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { adminListBarbershops } from "@/data/admin/barbershops";
+import { adminListBarbershopOptions } from "@/data/admin/barbershops";
 import { adminListUsers } from "@/data/admin/users";
 import {
+  buildPaginationHref,
   parseFilterParam,
   parsePageParam,
   parseStringParam,
@@ -44,33 +45,22 @@ const AdminOwnersPage = async ({ searchParams }: AdminOwnersPageProps) => {
   );
   const page = parsePageParam(resolvedSearchParams.page);
 
-  const [usersResult, barbershopsResult] = await Promise.all([
+  const paginationParams: Record<string, string | number | undefined> = {
+    q: search || undefined,
+    role: role !== "ALL" ? role : undefined,
+  };
+
+  const [usersResult, barbershopOptions] = await Promise.all([
     adminListUsers({
       search,
       role,
       page,
     }),
-    adminListBarbershops({
-      page: 1,
-      pageSize: 200,
-    }),
+    adminListBarbershopOptions(),
   ]);
 
-  const createPageHref = (nextPage: number) => {
-    const params = new URLSearchParams();
-
-    if (search) {
-      params.set("q", search);
-    }
-
-    if (role !== "ALL") {
-      params.set("role", role);
-    }
-
-    params.set("page", String(nextPage));
-
-    return `/admin/owners?${params.toString()}`;
-  };
+  const createPageHref = (nextPage: number) =>
+    buildPaginationHref("/admin/owners", paginationParams, nextPage);
 
   return (
     <div className="space-y-4">
@@ -104,12 +94,9 @@ const AdminOwnersPage = async ({ searchParams }: AdminOwnersPageProps) => {
             <Button type="submit">Filtrar</Button>
           </form>
 
-          <OwnersManagementTableClient
+          <OwnersManagementTable
             users={usersResult.items}
-            barbershopOptions={barbershopsResult.items.map((barbershop) => ({
-              id: barbershop.id,
-              name: barbershop.name,
-            }))}
+            barbershopOptions={barbershopOptions}
           />
 
           <div className="flex items-center justify-between gap-2">

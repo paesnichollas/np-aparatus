@@ -21,7 +21,14 @@ import {
   type AdminBookingStatusFilter,
   adminListBookings,
 } from "@/data/admin/bookings";
-import { adminListBarbershops } from "@/data/admin/barbershops";
+import { adminListBarbershopOptions } from "@/data/admin/barbershops";
+import {
+  buildPaginationHref,
+  parseDateParam,
+  parseFilterParam,
+  parsePageParam,
+  parseStringParam,
+} from "@/lib/search-params";
 
 interface AdminBookingsPageProps {
   searchParams: Promise<{
@@ -40,55 +47,6 @@ const statusValues = new Set<AdminBookingStatusFilter>([
   "CANCELLED",
   "FAILED",
 ]);
-
-const parseStringParam = (value: string | string[] | undefined) => {
-  if (!value) {
-    return "";
-  }
-
-  return Array.isArray(value) ? value[0] ?? "" : value;
-};
-
-const parsePageParam = (value: string | string[] | undefined) => {
-  const rawValue = parseStringParam(value);
-  const parsedPage = Number(rawValue);
-
-  if (!Number.isFinite(parsedPage) || parsedPage < 1) {
-    return 1;
-  }
-
-  return Math.floor(parsedPage);
-};
-
-const parseDateParam = (value: string | string[] | undefined) => {
-  const rawValue = parseStringParam(value);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  const parsedDate = new Date(rawValue);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return parsedDate;
-};
-
-const parseStatusParam = (value: string | string[] | undefined) => {
-  const normalizedValue = parseStringParam(value).toUpperCase();
-
-  if (statusValues.has(normalizedValue as AdminBookingStatusFilter)) {
-    return normalizedValue as AdminBookingStatusFilter;
-  }
-
-  return "ALL";
-};
-
-const toDateInputValue = (value: string | string[] | undefined) => {
-  return parseStringParam(value);
-};
 
 const getBookingStatusLabel = ({
   cancelledAt,
@@ -117,12 +75,23 @@ const getBookingStatusLabel = ({
 const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
   const resolvedSearchParams = await searchParams;
   const barbershopId = parseStringParam(resolvedSearchParams.barbershopId);
-  const status = parseStatusParam(resolvedSearchParams.status);
+  const status = parseFilterParam(
+    resolvedSearchParams.status,
+    statusValues,
+    "ALL",
+  ) as AdminBookingStatusFilter;
   const startDate = parseDateParam(resolvedSearchParams.startDate);
   const endDate = parseDateParam(resolvedSearchParams.endDate);
   const page = parsePageParam(resolvedSearchParams.page);
 
-  const [bookingsResult, barbershopsResult] = await Promise.all([
+  const paginationParams: Record<string, string | number | undefined> = {
+    barbershopId: barbershopId || undefined,
+    status: status !== "ALL" ? status : undefined,
+    startDate: parseStringParam(resolvedSearchParams.startDate) || undefined,
+    endDate: parseStringParam(resolvedSearchParams.endDate) || undefined,
+  };
+
+  const [bookingsResult, barbershopOptions] = await Promise.all([
     adminListBookings({
       barbershopId: barbershopId || undefined,
       status,
@@ -130,34 +99,11 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
       endDate,
       page,
     }),
-    adminListBarbershops({
-      page: 1,
-      pageSize: 200,
-    }),
+    adminListBarbershopOptions(),
   ]);
 
-  const createPageHref = (nextPage: number) => {
-    const params = new URLSearchParams();
-
-    if (barbershopId) {
-      params.set("barbershopId", barbershopId);
-    }
-
-    if (status !== "ALL") {
-      params.set("status", status);
-    }
-
-    if (startDate) {
-      params.set("startDate", toDateInputValue(resolvedSearchParams.startDate));
-    }
-
-    if (endDate) {
-      params.set("endDate", toDateInputValue(resolvedSearchParams.endDate));
-    }
-
-    params.set("page", String(nextPage));
-    return `/admin/bookings?${params.toString()}`;
-  };
+  const createPageHref = (nextPage: number) =>
+    buildPaginationHref("/admin/bookings", paginationParams, nextPage);
 
   return (
     <div className="space-y-4">
@@ -176,7 +122,7 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
               className="bg-background border-input h-9 rounded-md border px-3 text-sm"
             >
               <option value="">Todas as barbearias</option>
-              {barbershopsResult.items.map((barbershop) => (
+              {barbershopOptions.map((barbershop) => (
                 <option key={barbershop.id} value={barbershop.id}>
                   {barbershop.name}
                 </option>
@@ -198,13 +144,13 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
             <Input
               type="date"
               name="startDate"
-              defaultValue={toDateInputValue(resolvedSearchParams.startDate)}
+              defaultValue={parseStringParam(resolvedSearchParams.startDate)}
               className="w-full md:max-w-44"
             />
             <Input
               type="date"
               name="endDate"
-              defaultValue={toDateInputValue(resolvedSearchParams.endDate)}
+              defaultValue={parseStringParam(resolvedSearchParams.endDate)}
               className="w-full md:max-w-44"
             />
 

@@ -2,15 +2,10 @@ import { prisma } from "@/lib/prisma";
 import {
   getBookingCurrentMonth,
   getBookingCurrentYear,
-  getBookingDateKey,
   getBookingYearBounds,
 } from "@/lib/booking-time";
-import {
-  buildReportRevenueEligibilityWhere,
-  buildServiceDateRangeWhere,
-  calculateAverageTicket,
-  getReportServiceDate,
-} from "./reports-shared";
+import { BOOKING_TIMEZONE } from "@/lib/booking-time";
+import { calculateAverageTicket } from "./reports-shared";
 
 const MONTH_LABELS = [
   "Jan",
@@ -50,46 +45,52 @@ const createEmptyMonthlySummary = (): MonthlySummaryItem[] => {
   }));
 };
 
+type MonthlyAggregateRow = {
+  month: number;
+  total_bookings: bigint;
+  revenue: bigint;
+};
+
 export const getBarbershopMonthlySummary = async ({
   barbershopId,
   year,
 }: GetBarbershopMonthlySummaryInput): Promise<MonthlySummaryItem[]> => {
   const { start, endExclusive } = getBookingYearBounds(year);
 
-  const bookings = await prisma.booking.findMany({
-    where: {
-      barbershopId,
-      ...buildReportRevenueEligibilityWhere(),
-      ...buildServiceDateRangeWhere({
-        start,
-        endExclusive,
-      }),
-    },
-    select: {
-      startAt: true,
-      date: true,
-      totalPriceInCents: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<MonthlyAggregateRow[]>`
+    SELECT
+      EXTRACT(MONTH FROM (
+        COALESCE("startAt", "date") AT TIME ZONE ${BOOKING_TIMEZONE}
+      ))::int AS month,
+      COUNT(*)::bigint AS total_bookings,
+      COALESCE(SUM("totalPriceInCents"), 0)::bigint AS revenue
+    FROM "Booking"
+    WHERE "barbershopId" = ${barbershopId}
+      AND "cancelledAt" IS NULL
+      AND "paymentStatus" = 'PAID'
+      AND COALESCE("startAt", "date") >= ${start}
+      AND COALESCE("startAt", "date") < ${endExclusive}
+    GROUP BY EXTRACT(MONTH FROM (
+      COALESCE("startAt", "date") AT TIME ZONE ${BOOKING_TIMEZONE}
+    ))
+    ORDER BY month
+  `;
 
   const monthlySummary = createEmptyMonthlySummary();
 
-  for (const booking of bookings) {
-    const bookingDate = getReportServiceDate(booking);
-    const month = Number(getBookingDateKey(bookingDate).slice(5, 7));
-
+  for (const row of rows) {
+    const month = Number(row.month);
     if (Number.isNaN(month) || month < 1 || month > 12) {
       continue;
     }
 
     const targetMonth = monthlySummary[month - 1];
-
     if (!targetMonth) {
       continue;
     }
 
-    targetMonth.totalBookings += 1;
-    targetMonth.revenue += booking.totalPriceInCents ?? 0;
+    targetMonth.totalBookings = Number(row.total_bookings);
+    targetMonth.revenue = Number(row.revenue);
   }
 
   const now = new Date();
@@ -103,7 +104,6 @@ export const getBarbershopMonthlySummary = async ({
 
       monthSummary.totalBookings = 0;
       monthSummary.revenue = 0;
-      monthSummary.avgTicket = 0;
     }
   }
 

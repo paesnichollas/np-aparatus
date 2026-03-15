@@ -4,21 +4,10 @@ import {
   parseBody,
   requireAuth,
 } from "@/lib/api-action-adapter";
+import { WAITLIST_JOIN_INPUT_SCHEMA } from "@/lib/waitlist-shared";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 export const runtime = "nodejs";
-
-const requestSchema = z.object({
-  barbershopId: z.uuid(),
-  barberId: z.uuid(),
-  serviceId: z.uuid(),
-  dateDay: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/),
-  paymentMethod: z.enum(["STRIPE", "IN_PERSON"]).optional(),
-});
 
 export const POST = async (request: Request) => {
   const user = await requireAuth();
@@ -26,7 +15,7 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const parsed = await parseBody(request, requestSchema);
+  const parsed = await parseBody(request, WAITLIST_JOIN_INPUT_SCHEMA);
   if (!parsed.success) {
     return parsed.response;
   }

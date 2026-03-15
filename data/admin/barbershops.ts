@@ -618,6 +618,24 @@ export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}
   };
 };
 
+export type AdminBarbershopOption = {
+  id: string;
+  name: string;
+};
+
+export const adminListBarbershopOptions = async (): Promise<
+  AdminBarbershopOption[]
+> => {
+  await requireAdmin({ onUnauthorized: "throw" });
+
+  const items = await prisma.barbershop.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
+  return items;
+};
+
 export const adminGetBarbershop = async (barbershopId: string) => {
   await requireAdmin({ onUnauthorized: "throw" });
 

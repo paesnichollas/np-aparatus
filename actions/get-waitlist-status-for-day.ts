@@ -1,20 +1,17 @@
 "use server";
 
 import { protectedActionClient } from "@/lib/action-client";
-import { getBookingDateKey, parseBookingDateOnly } from "@/lib/booking-time";
+import { getBookingDateKey } from "@/lib/booking-time";
+import {
+  computeWaitlistPosition,
+  findActiveWaitlistEntry,
+  getWaitlistQueueLength,
+  parseWaitlistDateDay,
+  resolveWaitlistContext,
+  WAITLIST_STATUS_INPUT_SCHEMA,
+} from "@/lib/waitlist-shared";
 import { prisma } from "@/lib/prisma";
 import { returnValidationErrors } from "next-safe-action";
-import { z } from "zod";
-
-const inputSchema = z.object({
-  barbershopId: z.uuid(),
-  barberId: z.uuid(),
-  serviceId: z.uuid(),
-  dateDay: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/),
-});
 
 const defaultWaitlistStatus = {
   isInQueue: false,
@@ -24,107 +21,58 @@ const defaultWaitlistStatus = {
 };
 
 export const getWaitlistStatusForDay = protectedActionClient
-  .inputSchema(inputSchema)
+  .inputSchema(WAITLIST_STATUS_INPUT_SCHEMA)
   .action(
     async ({
       parsedInput: { barbershopId, barberId, serviceId, dateDay },
       ctx: { user },
     }) => {
-      const parsedDateDay = parseBookingDateOnly(dateDay);
+      const parsedDateDay = parseWaitlistDateDay(dateDay);
 
       if (!parsedDateDay) {
-        returnValidationErrors(inputSchema, {
+        returnValidationErrors(WAITLIST_STATUS_INPUT_SCHEMA, {
           _errors: ["Dia inválido para consulta da fila de espera."],
         });
       }
 
-      const [barbershop, barber, service] = await Promise.all([
-        prisma.barbershop.findUnique({
-          where: {
-            id: barbershopId,
-          },
-          select: {
-            id: true,
-            isActive: true,
-          },
-        }),
-        prisma.barber.findFirst({
-          where: {
-            id: barberId,
-            barbershopId,
-          },
-          select: {
-            id: true,
-          },
-        }),
-        prisma.barbershopService.findFirst({
-          where: {
-            id: serviceId,
-            barbershopId,
-            deletedAt: null,
-          },
-          select: {
-            id: true,
-          },
-        }),
-      ]);
+      const context = await resolveWaitlistContext({
+        barbershopId,
+        barberId,
+        serviceId,
+      });
 
-      if (!barbershop || !barbershop.isActive || !barber || !service) {
+      if (!context || !context.barbershop.isActive) {
         return defaultWaitlistStatus;
       }
 
       const [entry, queueLength] = await Promise.all([
-        prisma.waitlistEntry.findFirst({
-          where: {
-            userId: user.id,
-            barbershopId,
-            barberId,
-            serviceId,
-            dateDay: parsedDateDay,
-            status: "ACTIVE",
-          },
-          select: {
-            id: true,
-            createdAt: true,
-          },
-        }),
-        prisma.waitlistEntry.count({
-          where: {
-            barbershopId,
-            barberId,
-            serviceId,
-            dateDay: parsedDateDay,
-            status: "ACTIVE",
-          },
-        }),
+        findActiveWaitlistEntry(
+          user.id,
+          barbershopId,
+          barberId,
+          serviceId,
+          parsedDateDay,
+        ),
+        getWaitlistQueueLength(
+          barbershopId,
+          barberId,
+          serviceId,
+          parsedDateDay,
+        ),
       ]);
 
       if (!entry) {
         return defaultWaitlistStatus;
       }
 
-      const position = await prisma.waitlistEntry.count({
-        where: {
-          barbershopId,
-          barberId,
-          serviceId,
-          dateDay: parsedDateDay,
-          status: "ACTIVE",
-          OR: [
-            {
-              createdAt: {
-                lt: entry.createdAt,
-              },
-            },
-            {
-              createdAt: entry.createdAt,
-              id: {
-                lte: entry.id,
-              },
-            },
-          ],
-        },
-      });
+      const position = await computeWaitlistPosition(
+        prisma,
+        barbershopId,
+        barberId,
+        serviceId,
+        parsedDateDay,
+        entry,
+      );
 
       return {
         isInQueue: true,

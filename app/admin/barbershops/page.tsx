@@ -22,6 +22,7 @@ import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle"
 import { adminListBarbershops } from "@/data/admin/barbershops";
 import { formatPhoneBRDisplay } from "@/lib/phone";
 import {
+  buildPaginationHref,
   parseFilterParam,
   parsePageParam,
   parseStringParam,
@@ -56,6 +57,12 @@ const AdminBarbershopsPage = async ({
     "ALL",
   ) as "ALL" | "EXCLUSIVE" | "NON_EXCLUSIVE";
 
+  const paginationParams: Record<string, string | number | undefined> = {
+    q: search || undefined,
+    status: status !== "ALL" ? status : undefined,
+    exclusive: exclusive !== "ALL" ? exclusive : undefined,
+  };
+
   const result = await adminListBarbershops({
     search,
     page,
@@ -63,24 +70,8 @@ const AdminBarbershopsPage = async ({
     exclusive,
   });
 
-  const createPageHref = (nextPage: number) => {
-    const params = new URLSearchParams();
-
-    if (search) {
-      params.set("q", search);
-    }
-
-    if (status !== "ALL") {
-      params.set("status", status);
-    }
-
-    if (exclusive !== "ALL") {
-      params.set("exclusive", exclusive);
-    }
-
-    params.set("page", String(nextPage));
-    return `/admin/barbershops?${params.toString()}`;
-  };
+  const createPageHref = (nextPage: number) =>
+    buildPaginationHref("/admin/barbershops", paginationParams, nextPage);
 
   return (
     <div className="space-y-4">
