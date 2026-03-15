@@ -22,3 +22,11 @@ export const barbershopBySlugTag = (slug: string) => {
 export const barbershopByPublicSlugTag = (publicSlug: string) => {
   return `${BARBERSHOP_BY_PUBLIC_SLUG_TAG_PREFIX}${normalizeTagValue(publicSlug)}`;
 };
+
+const REPORT_DASHBOARD_TAG_PREFIX = "report:dashboard:";
+
+export const reportDashboardTag = (
+  barbershopId: string,
+  year: number,
+  month: number,
+) => `${REPORT_DASHBOARD_TAG_PREFIX}${barbershopId}:${year}:${month}`;

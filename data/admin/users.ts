@@ -19,8 +19,6 @@ interface AdminListUsersInput {
 }
 
 export const adminListUsers = async (input: AdminListUsersInput = {}) => {
-  await requireAdmin({ onUnauthorized: "throw" });
-
   const page = normalizePage(input.page);
   const pageSize = normalizePageSize(input.pageSize, 50, 12);
   const search = normalizeSearch(input.search);

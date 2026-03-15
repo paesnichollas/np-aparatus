@@ -24,4 +24,6 @@ export const queryKeys = {
     serviceId: string | undefined,
     dateDay: string | undefined,
   ) => ["waitlist-status-for-day", barbershopId, barberId, serviceId, dateDay],
+  ownerReportDashboard: (barbershopId: string, year: number, month: number) =>
+    ["owner-report-dashboard", barbershopId, year, month],
 };

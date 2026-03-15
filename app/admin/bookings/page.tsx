@@ -1,22 +1,3 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   type AdminBookingStatusFilter,
   adminListBookings,
@@ -29,6 +10,17 @@ import {
   parsePageParam,
   parseStringParam,
 } from "@/lib/search-params";
+import { AdminListPageFrame } from "@/components/admin/admin-list-page-frame";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface AdminBookingsPageProps {
   searchParams: Promise<{
@@ -106,17 +98,12 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
     buildPaginationHref("/admin/bookings", paginationParams, nextPage);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Agendamentos</CardTitle>
-          <CardDescription>
-            Lista global de agendamentos com filtros por barbearia, período e status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form className="flex flex-wrap items-center gap-2">
-            <select
+    <AdminListPageFrame
+      title="Agendamentos"
+      description="Lista global de agendamentos com filtros por barbearia, período e status."
+      filterForm={
+        <>
+          <select
               name="barbershopId"
               defaultValue={barbershopId}
               className="bg-background border-input h-9 rounded-md border px-3 text-sm"
@@ -154,10 +141,17 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
               className="w-full md:max-w-44"
             />
 
-            <Button type="submit">Filtrar</Button>
-          </form>
-
-          <Table>
+          <Button type="submit">Filtrar</Button>
+        </>
+      }
+      pagination={{
+        page: bookingsResult.page,
+        totalPages: bookingsResult.totalPages,
+        totalCount: bookingsResult.totalCount,
+        createPageHref,
+      }}
+    >
+      <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Data</TableHead>
@@ -198,36 +192,7 @@ const AdminBookingsPage = async ({ searchParams }: AdminBookingsPageProps) => {
               )}
             </TableBody>
           </Table>
-
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-muted-foreground text-sm">
-              Página {bookingsResult.page} de {bookingsResult.totalPages} (
-              {bookingsResult.totalCount} resultados)
-            </p>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline" disabled={bookingsResult.page <= 1}>
-                <Link href={createPageHref(Math.max(1, bookingsResult.page - 1))}>
-                  Anterior
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                disabled={bookingsResult.page >= bookingsResult.totalPages}
-              >
-                <Link
-                  href={createPageHref(
-                    Math.min(bookingsResult.totalPages, bookingsResult.page + 1),
-                  )}
-                >
-                  Próximo
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </AdminListPageFrame>
   );
 };
 

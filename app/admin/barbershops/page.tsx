@@ -1,14 +1,9 @@
 import Link from "next/link";
 
+import { AdminListPageFrame } from "@/components/admin/admin-list-page-frame";
+import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -18,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
 import { adminListBarbershops } from "@/data/admin/barbershops";
 import { formatPhoneBRDisplay } from "@/lib/phone";
 import {
@@ -74,51 +68,51 @@ const AdminBarbershopsPage = async ({
     buildPaginationHref("/admin/barbershops", paginationParams, nextPage);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="space-y-1">
-              <CardTitle>Barbearias</CardTitle>
-              <CardDescription>
-                Busque e gerencie dados principais das barbearias.
-              </CardDescription>
-            </div>
-            <Button asChild>
-              <Link href="/admin/barbershops/new">Nova barbearia</Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form className="flex flex-wrap items-center gap-2">
-            <Input
-              name="q"
-              defaultValue={search}
-              placeholder="Buscar por nome, slug, public slug ou owner"
-              className="w-full md:max-w-md"
-            />
-            <select
-              name="status"
-              defaultValue={status}
-              className="bg-background border-input h-9 rounded-md border px-3 text-sm"
-            >
-              <option value="ALL">Todas</option>
-              <option value="ACTIVE">Ativas</option>
-              <option value="INACTIVE">Inativas</option>
-            </select>
-            <select
-              name="exclusive"
-              defaultValue={exclusive}
-              className="bg-background border-input h-9 rounded-md border px-3 text-sm"
-            >
-              <option value="ALL">Exclusivas e não exclusivas</option>
-              <option value="EXCLUSIVE">Somente exclusivas</option>
-              <option value="NON_EXCLUSIVE">Somente não exclusivas</option>
-            </select>
-            <Button type="submit">Buscar</Button>
-          </form>
-
-          <Table>
+    <AdminListPageFrame
+      title="Barbearias"
+      description="Busque e gerencie dados principais das barbearias."
+      action={
+        <Button asChild>
+          <Link href="/admin/barbershops/new">Nova barbearia</Link>
+        </Button>
+      }
+      filterForm={
+        <>
+          <Input
+            name="q"
+            defaultValue={search}
+            placeholder="Buscar por nome, slug, public slug ou owner"
+            className="w-full md:max-w-md"
+          />
+          <select
+            name="status"
+            defaultValue={status}
+            className="bg-background border-input h-9 rounded-md border px-3 text-sm"
+          >
+            <option value="ALL">Todas</option>
+            <option value="ACTIVE">Ativas</option>
+            <option value="INACTIVE">Inativas</option>
+          </select>
+          <select
+            name="exclusive"
+            defaultValue={exclusive}
+            className="bg-background border-input h-9 rounded-md border px-3 text-sm"
+          >
+            <option value="ALL">Exclusivas e não exclusivas</option>
+            <option value="EXCLUSIVE">Somente exclusivas</option>
+            <option value="NON_EXCLUSIVE">Somente não exclusivas</option>
+          </select>
+          <Button type="submit">Buscar</Button>
+        </>
+      }
+      pagination={{
+        page: result.page,
+        totalPages: result.totalPages,
+        totalCount: result.totalCount,
+        createPageHref,
+      }}
+    >
+      <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
@@ -197,35 +191,7 @@ const AdminBarbershopsPage = async ({
               )}
             </TableBody>
           </Table>
-
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-muted-foreground text-sm">
-              Página {result.page} de {result.totalPages} ({result.totalCount} resultados)
-            </p>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline" disabled={result.page <= 1}>
-                <Link href={createPageHref(Math.max(1, result.page - 1))}>
-                  Anterior
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                disabled={result.page >= result.totalPages}
-              >
-                <Link
-                  href={createPageHref(
-                    Math.min(result.totalPages, result.page + 1),
-                  )}
-                >
-                  Próximo
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </AdminListPageFrame>
   );
 };
 

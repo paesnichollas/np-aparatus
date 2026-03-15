@@ -6,7 +6,6 @@ import {
   normalizePageSize,
 } from "@/data/admin/shared";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/rbac";
 
 const ADMIN_BOOKING_LIST_SELECT = {
   id: true,
@@ -78,8 +77,6 @@ export const adminListBookings = async ({
   page,
   pageSize,
 }: AdminListBookingsInput = {}) => {
-  await requireAdmin({ onUnauthorized: "throw" });
-
   const normalizedPage = normalizePage(page);
   const normalizedPageSize = normalizePageSize(pageSize, 100, 20);
   const now = new Date();

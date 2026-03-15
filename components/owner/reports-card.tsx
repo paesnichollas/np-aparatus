@@ -1,17 +1,10 @@
-﻿"use client";
+"use client";
 
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useMemo, useState, useTransition } from "react";
 
+import { useGetOwnerReportDashboard } from "@/hooks/data/use-owner-report-dashboard";
+import ReportsAnnualChart from "@/components/owner/reports-annual-chart";
 import {
   Card,
   CardContent,
@@ -127,13 +120,6 @@ const monthlySummaryMonthsFallback: NormalizedMonthlySummaryMonth[] =
     avgTicket: 0,
   }));
 
-const compactCurrencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 const buildYearOptions = (currentYear: number) => {
   return [currentYear];
 };
@@ -175,87 +161,6 @@ const getInitialMonthForYear = ({
   }
 
   return 1;
-};
-
-const getApiErrorMessage = (value: unknown) => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const error = (value as { error?: unknown }).error;
-  if (typeof error !== "string") {
-    return null;
-  }
-
-  return error;
-};
-
-const hasMonthlySummaryShape = (value: unknown): value is MonthlySummaryData => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const parsedValue = value as Partial<MonthlySummaryData>;
-
-  return (
-    typeof parsedValue.year === "number" &&
-    typeof parsedValue.barbershopId === "string" &&
-    Array.isArray(parsedValue.months) &&
-    parsedValue.months.length === 12 &&
-    parsedValue.months.every(
-      (month) =>
-        typeof month.month === "number" &&
-        typeof month.label === "string" &&
-        typeof month.totalBookings === "number" &&
-        typeof month.revenue === "number" &&
-        (typeof month.avgTicket === "number" || typeof month.avgTicket === "undefined"),
-    ) &&
-    typeof parsedValue.totals?.totalBookings === "number" &&
-    typeof parsedValue.totals?.revenue === "number" &&
-    typeof parsedValue.totals?.averageTicket === "number"
-  );
-};
-
-const hasSummaryShape = (value: unknown): value is ReportSummaryData => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const parsedValue = value as Partial<ReportSummaryData>;
-
-  return (
-    typeof parsedValue.current?.totalBookings === "number" &&
-    typeof parsedValue.current?.revenue === "number" &&
-    typeof parsedValue.current?.avgTicket === "number" &&
-    typeof parsedValue.current?.rangeStart === "string" &&
-    typeof parsedValue.current?.rangeEnd === "string" &&
-    typeof parsedValue.previous?.totalBookings === "number" &&
-    typeof parsedValue.previous?.revenue === "number" &&
-    typeof parsedValue.previous?.avgTicket === "number" &&
-    typeof parsedValue.previous?.rangeStart === "string" &&
-    typeof parsedValue.previous?.rangeEnd === "string" &&
-    (typeof parsedValue.delta?.bookingsPercent === "number" ||
-      parsedValue.delta?.bookingsPercent === null) &&
-    (typeof parsedValue.delta?.revenuePercent === "number" ||
-      parsedValue.delta?.revenuePercent === null) &&
-    (typeof parsedValue.delta?.ticketPercent === "number" ||
-      parsedValue.delta?.ticketPercent === null)
-  );
-};
-
-const hasDashboardShape = (value: unknown): value is ReportDashboardData => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const parsedValue = value as Partial<ReportDashboardData>;
-
-  return (
-    hasMonthlySummaryShape(parsedValue.monthlySummary) &&
-    hasSummaryShape(parsedValue.summaries?.week) &&
-    hasSummaryShape(parsedValue.summaries?.month) &&
-    hasSummaryShape(parsedValue.summaries?.year)
-  );
 };
 
 const formatDateLabel = (isoDate: string) => {
@@ -395,43 +300,6 @@ const KpiCard = ({ title, summary, isPending, comparisonLabel }: KpiCardProps) =
   );
 };
 
-const AnnualChartTooltip = ({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{
-    payload: ChartPoint;
-  }>;
-}) => {
-  if (!active || !payload || payload.length === 0) {
-    return null;
-  }
-
-  const chartPoint = payload[0]?.payload;
-
-  if (!chartPoint) {
-    return null;
-  }
-
-  return (
-    <Card className="border-border min-w-[11rem] border shadow-sm">
-      <CardContent className="space-y-1 py-3">
-        <p className="text-sm font-semibold">{chartPoint.label}</p>
-        <p className="text-muted-foreground text-xs">
-          Agendamentos: {chartPoint.totalBookings.toLocaleString("pt-BR")}
-        </p>
-        <p className="text-muted-foreground text-xs">
-          Faturamento: {formatCurrency(chartPoint.revenue)}
-        </p>
-        <p className="text-muted-foreground text-xs">
-          Ticket medio: {formatCurrency(chartPoint.avgTicket)}
-        </p>
-      </CardContent>
-    </Card>
-  );
-};
-
 const OwnerReportsCard = ({
   isAdmin,
   initialBarbershopId,
@@ -455,14 +323,18 @@ const OwnerReportsCard = ({
     }),
   );
 
-  const [dashboardData, setDashboardData] = useState<ReportDashboardData | null>(
-    null,
-  );
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [isDashboardPending, setIsDashboardPending] = useState(false);
   const [isFilterTransitionPending, startFilterTransition] = useTransition();
 
   const canLoadReport = !isAdmin || selectedBarbershopId.length > 0;
+  const { data: dashboardData, isPending: isDashboardPending, error } =
+    useGetOwnerReportDashboard({
+      barbershopId: canLoadReport ? selectedBarbershopId : null,
+      year: selectedYear,
+      month: selectedMonth,
+      enabled: canLoadReport,
+    });
+
+  const dashboardError = error?.message ?? null;
   const isFilterControlDisabled = isDashboardPending || isFilterTransitionPending;
   const yearOptions = useMemo(
     () => buildYearOptions(currentBookingYear),
@@ -480,73 +352,6 @@ const OwnerReportsCard = ({
 
     return selectedBarbershop?.name ?? null;
   }, [barbershopOptions, isAdmin, selectedBarbershopId]);
-
-  useEffect(() => {
-    if (!canLoadReport) {
-      setDashboardData(null);
-      setDashboardError(null);
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const loadDashboard = async () => {
-      setIsDashboardPending(true);
-      setDashboardError(null);
-
-      const queryParams = new URLSearchParams({
-        year: String(selectedYear),
-        month: String(selectedMonth),
-      });
-
-      if (selectedBarbershopId) {
-        queryParams.set("barbershopId", selectedBarbershopId);
-      }
-
-      try {
-        const response = await fetch(`/api/reports/dashboard?${queryParams.toString()}`, {
-          method: "GET",
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-        const responseData = (await response.json()) as unknown;
-
-        if (!response.ok) {
-          const errorMessage =
-            getApiErrorMessage(responseData) ??
-            "Não foi possível carregar o relatório.";
-          throw new Error(errorMessage);
-        }
-
-        if (!hasDashboardShape(responseData)) {
-          throw new Error("Relatório inválido.");
-        }
-
-        setDashboardData(responseData);
-      } catch (error) {
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        setDashboardData(null);
-        setDashboardError(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar o relatório.",
-        );
-      } finally {
-        if (!abortController.signal.aborted) {
-          setIsDashboardPending(false);
-        }
-      }
-    };
-
-    loadDashboard();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [canLoadReport, selectedBarbershopId, selectedMonth, selectedYear]);
 
   const handleYearChange = (yearValue: string) => {
     const parsedYear = Number(yearValue);
@@ -762,62 +567,9 @@ const OwnerReportsCard = ({
           </CardHeader>
           <CardContent className="space-y-4">
             {isDashboardPending && !monthlySummary ? (
-              <div className="bg-muted h-[18rem] animate-pulse rounded-md" />
+              <div className="bg-muted h-72 animate-pulse rounded-md" />
             ) : (
-              <div className="h-[20rem] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 8, right: 12, left: 12, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" />
-                    <YAxis
-                      tickFormatter={(value: number) =>
-                        compactCurrencyFormatter.format((value ?? 0) / 100)
-                      }
-                    />
-                    <Tooltip
-                      cursor={{
-                        stroke: "var(--color-border)",
-                        strokeWidth: 1,
-                      }}
-                      content={({ active, payload }) => (
-                        <AnnualChartTooltip
-                          active={active}
-                          payload={
-                            payload as Array<{
-                              payload: ChartPoint;
-                            }>
-                          }
-                        />
-                      )}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="revenuePast"
-                      stroke="var(--color-chart-1)"
-                      strokeWidth={2}
-                      dot={{
-                        r: 3,
-                        fill: "var(--color-chart-1)",
-                      }}
-                      activeDot={{
-                        r: 5,
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="revenueFuture"
-                      stroke="var(--color-muted-foreground)"
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      dot={{
-                        r: 3,
-                        fill: "var(--color-muted-foreground)",
-                      }}
-                      activeDot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ReportsAnnualChart chartData={chartData} />
             )}
 
             {isYearEmpty && !isDashboardPending ? (

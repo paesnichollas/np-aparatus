@@ -106,3 +106,30 @@ export const revalidateBookingSurfaces = ({
     revalidatePath("/admin/bookings");
   }
 };
+
+interface RevalidateAdminBarbershopSurfacesInput {
+  barbershopId: string;
+  slug?: string | null;
+  previousSlug?: string | null;
+  publicSlug?: string | null;
+}
+
+export const revalidateAdminBarbershopSurfaces = ({
+  barbershopId,
+  slug,
+  previousSlug,
+  publicSlug,
+}: RevalidateAdminBarbershopSurfacesInput) => {
+  revalidatePath("/admin");
+  revalidatePath("/admin/barbershops");
+  revalidatePath(`/admin/barbershops/${barbershopId}`);
+  revalidatePath("/admin/owners");
+  revalidatePath("/owner");
+  revalidatePath("/owner/reports");
+  revalidatePublicBarbershopCache({
+    barbershopId,
+    slug,
+    previousSlug,
+    publicSlug,
+  });
+};

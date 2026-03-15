@@ -2,6 +2,11 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
 import { ADMIN_CREATE_BARBERSHOP_DEFAULTS } from "@/data/admin/barbershop-defaults";
+import {
+  normalizePage,
+  normalizePageSize,
+  normalizeSearch,
+} from "@/data/admin/shared";
 import { demoteOwnerToCustomerByAdmin, promoteUserToOwnerByAdmin } from "@/data/owner-assignment";
 import { cancelFuturePendingBarbershopNotificationJobs } from "@/lib/notifications/notification-jobs";
 import { buildPublicSlugCandidate, getPublicSlugBase } from "@/lib/public-slug";
@@ -10,8 +15,6 @@ import { requireAdmin } from "@/lib/rbac";
 import { normalizeOptionalText, normalizePhones } from "@/lib/string-helpers";
 import { isValidImageUrl } from "@/lib/url-helpers";
 
-const DEFAULT_PAGE_SIZE = 12;
-const MAX_PAGE_SIZE = 50;
 const MAX_SLUG_GENERATION_ATTEMPTS = 100;
 
 export type AdminBarbershopActionErrorCode =
@@ -257,27 +260,6 @@ const BARBERSHOP_DETAILS_SELECT = {
     },
   },
 } satisfies Prisma.BarbershopSelect;
-
-const normalizePage = (page: number | undefined) => {
-  if (!page || Number.isNaN(page) || page < 1) {
-    return 1;
-  }
-
-  return Math.floor(page);
-};
-
-const normalizePageSize = (pageSize: number | undefined) => {
-  if (!pageSize || Number.isNaN(pageSize) || pageSize < 1) {
-    return DEFAULT_PAGE_SIZE;
-  }
-
-  return Math.min(Math.floor(pageSize), MAX_PAGE_SIZE);
-};
-
-const normalizeSearch = (search: string | undefined) => {
-  const normalizedSearch = search?.trim();
-  return normalizedSearch?.length ? normalizedSearch : null;
-};
 
 const normalizePhonesWithValidation = (
   phones: string[] | undefined,
@@ -537,8 +519,6 @@ interface AdminListBarbershopsInput {
 }
 
 export const adminListBarbershops = async (input: AdminListBarbershopsInput = {}) => {
-  await requireAdmin({ onUnauthorized: "throw" });
-
   const page = normalizePage(input.page);
   const pageSize = normalizePageSize(input.pageSize);
   const search = normalizeSearch(input.search);
@@ -626,8 +606,6 @@ export type AdminBarbershopOption = {
 export const adminListBarbershopOptions = async (): Promise<
   AdminBarbershopOption[]
 > => {
-  await requireAdmin({ onUnauthorized: "throw" });
-
   const items = await prisma.barbershop.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
@@ -637,8 +615,6 @@ export const adminListBarbershopOptions = async (): Promise<
 };
 
 export const adminGetBarbershop = async (barbershopId: string) => {
-  await requireAdmin({ onUnauthorized: "throw" });
-
   const normalizedBarbershopId = barbershopId.trim();
 
   if (!normalizedBarbershopId) {

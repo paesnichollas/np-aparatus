@@ -1,11 +1,20 @@
-import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
+
 import {
   getBookingCurrentMonth,
   getBookingCurrentYear,
   getBookingYearBounds,
 } from "@/lib/booking-time";
 import { BOOKING_TIMEZONE } from "@/lib/booking-time";
-import { calculateAverageTicket } from "./reports-shared";
+import { prisma } from "@/lib/prisma";
+import { reportDashboardTag } from "@/lib/cache-tags";
+import { CACHE_REVALIDATE_SECONDS } from "@/lib/cache-tags";
+import {
+  aggregateReportMetrics,
+  calculateAverageTicket,
+  toRangeResponse,
+  type ReportDateRange,
+} from "./reports-shared";
 
 const MONTH_LABELS = [
   "Jan",
@@ -115,4 +124,159 @@ export const getBarbershopMonthlySummary = async ({
   }
 
   return monthlySummary;
+};
+
+const calculateDeltaPercent = (current: number, previous: number) => {
+  if (previous === 0) {
+    return current === 0 ? 0 : null;
+  }
+
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+};
+
+const buildReportSummary = async ({
+  barbershopId,
+  ranges,
+}: {
+  barbershopId: string;
+  ranges: {
+    current: ReportDateRange;
+    previous: ReportDateRange;
+  };
+}) => {
+  const [current, previous] = await Promise.all([
+    aggregateReportMetrics({
+      barbershopId,
+      range: ranges.current,
+    }),
+    aggregateReportMetrics({
+      barbershopId,
+      range: ranges.previous,
+    }),
+  ]);
+
+  return {
+    current: {
+      ...current,
+      ...toRangeResponse(ranges.current),
+    },
+    previous: {
+      ...previous,
+      ...toRangeResponse(ranges.previous),
+    },
+    delta: {
+      bookingsPercent: calculateDeltaPercent(
+        current.totalBookings,
+        previous.totalBookings,
+      ),
+      revenuePercent: calculateDeltaPercent(current.revenue, previous.revenue),
+      ticketPercent: calculateDeltaPercent(current.avgTicket, previous.avgTicket),
+    },
+  };
+};
+
+export type ReportDashboardResult = {
+  monthlySummary: {
+    year: number;
+    barbershopId: string;
+    months: MonthlySummaryItem[];
+    totals: {
+      totalBookings: number;
+      revenue: number;
+      averageTicket: number;
+    };
+  };
+  summaries: {
+    week: Awaited<ReturnType<typeof buildReportSummary>>;
+    month: Awaited<ReturnType<typeof buildReportSummary>>;
+    year: Awaited<ReturnType<typeof buildReportSummary>>;
+  };
+};
+
+export const buildReportDashboard = async ({
+  barbershopId,
+  year,
+  summaryMonth,
+}: {
+  barbershopId: string;
+  year: number;
+  summaryMonth: number;
+}): Promise<ReportDashboardResult> => {
+  const {
+    getMonthlyReportRanges,
+    getWeeklyReportRanges,
+    getYearlyReportRanges,
+  } = await import("./reports-shared");
+
+  const monthlyRanges = getMonthlyReportRanges(year, summaryMonth);
+  const yearlyRanges = getYearlyReportRanges(year);
+
+  if (!monthlyRanges || !yearlyRanges) {
+    throw new Error("Período inválido para gerar o relatório.");
+  }
+
+  const weeklyRanges = getWeeklyReportRanges();
+
+  const [months, weekSummary, monthSummary, yearSummary] = await Promise.all([
+    getBarbershopMonthlySummary({
+      barbershopId,
+      year,
+    }),
+    buildReportSummary({
+      barbershopId,
+      ranges: weeklyRanges,
+    }),
+    buildReportSummary({
+      barbershopId,
+      ranges: monthlyRanges,
+    }),
+    buildReportSummary({
+      barbershopId,
+      ranges: yearlyRanges,
+    }),
+  ]);
+
+  const totalBookings = months.reduce(
+    (sum, month) => sum + month.totalBookings,
+    0,
+  );
+  const revenue = months.reduce((sum, month) => sum + month.revenue, 0);
+  const averageTicket = calculateAverageTicket(revenue, totalBookings);
+
+  return {
+    monthlySummary: {
+      year,
+      barbershopId,
+      months,
+      totals: {
+        totalBookings,
+        revenue,
+        averageTicket,
+      },
+    },
+    summaries: {
+      week: weekSummary,
+      month: monthSummary,
+      year: yearSummary,
+    },
+  };
+};
+
+export const getReportDashboardCached = ({
+  barbershopId,
+  year,
+  summaryMonth,
+}: {
+  barbershopId: string;
+  year: number;
+  summaryMonth: number;
+}) => {
+  return unstable_cache(
+    () => buildReportDashboard({ barbershopId, year, summaryMonth }),
+    ["report-dashboard", barbershopId, String(year), String(summaryMonth)],
+    {
+      revalidate: CACHE_REVALIDATE_SECONDS,
+      tags: [reportDashboardTag(barbershopId, year, summaryMonth)],
+    },
+  )();
 };

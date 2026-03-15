@@ -7,8 +7,7 @@ import {
   toAdminBarbershopActionErrorPayload,
 } from "@/data/admin/barbershops";
 import { adminActionClient } from "@/lib/action-client";
-import { revalidatePublicBarbershopCache } from "@/lib/cache-invalidation";
-import { revalidatePath } from "next/cache";
+import { revalidateAdminBarbershopSurfaces } from "@/lib/cache-invalidation";
 import { z } from "zod";
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -52,12 +51,7 @@ export const adminCreateBarbershopAction = adminActionClient
     try {
       const createdBarbershop = await adminCreateBarbershop(parsedInput);
 
-      revalidatePath("/admin");
-      revalidatePath("/admin/barbershops");
-      revalidatePath(`/admin/barbershops/${createdBarbershop.id}`);
-      revalidatePath("/admin/owners");
-      revalidatePath("/owner/reports");
-      revalidatePublicBarbershopCache({
+      revalidateAdminBarbershopSurfaces({
         barbershopId: createdBarbershop.id,
         slug: createdBarbershop.slug,
         publicSlug: createdBarbershop.publicSlug,

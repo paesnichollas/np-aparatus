@@ -3,8 +3,7 @@
 import { adminDeleteBarbershopSafely } from "@/data/admin/barbershops";
 import { adminActionClient } from "@/lib/action-client";
 import { getActionErrorMessageFromError } from "@/lib/action-errors";
-import { revalidatePublicBarbershopCache } from "@/lib/cache-invalidation";
-import { revalidatePath } from "next/cache";
+import { revalidateAdminBarbershopSurfaces } from "@/lib/cache-invalidation";
 import { returnValidationErrors } from "next-safe-action";
 import { z } from "zod";
 
@@ -18,11 +17,7 @@ export const adminDeleteBarbershopAction = adminActionClient
     try {
       const deletedBarbershop = await adminDeleteBarbershopSafely(barbershopId);
 
-      revalidatePath("/admin");
-      revalidatePath("/admin/barbershops");
-      revalidatePath("/admin/owners");
-      revalidatePath("/owner/reports");
-      revalidatePublicBarbershopCache({
+      revalidateAdminBarbershopSurfaces({
         barbershopId: deletedBarbershop.id,
         slug: deletedBarbershop.slug,
         publicSlug: deletedBarbershop.publicSlug,
