@@ -6,15 +6,16 @@ import { scheduleBookingNotificationJobs } from "@/lib/notifications/notificatio
 
 import {
   BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingDayBounds,
   getBookingMinuteOfDay,
   isBookingDateTimeAtOrBeforeNowWithBuffer,
 } from "@/lib/booking-time";
+import { getDayWindow } from "@/lib/booking-mutation-helpers";
 import {
+  checkTimeSlotCollision,
   getBookingDurationMinutes,
   getBookingStartDate,
-} from "@/lib/booking-calculations";
-import { hasMinuteIntervalOverlap } from "@/lib/booking-interval";
+  hasInvalidServiceData,
+} from "@/lib/booking-mutation-helpers";
 import {
   ACTIVE_BOOKING_PAYMENT_WHERE,
   resolveInitialPaymentState,
@@ -30,29 +31,6 @@ const inputSchema = z.object({
   date: z.date(),
 });
 
-const hasInvalidServiceData = (service: {
-  name: string;
-  priceInCents: number;
-  durationInMinutes: number;
-}) => {
-  if (service.name.trim().length === 0) {
-    return true;
-  }
-
-  if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0) {
-    return true;
-  }
-
-  if (
-    !Number.isInteger(service.durationInMinutes) ||
-    service.durationInMinutes < 5
-  ) {
-    return true;
-  }
-
-  return false;
-};
-
 export const createBooking = criticalActionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: { barbershopId, serviceId, barberId, date }, ctx: { user } }) => {
@@ -64,10 +42,8 @@ export const createBooking = criticalActionClient
       });
     }
 
-    const {
-      start: selectedDateStart,
-      endExclusive: selectedDateEndExclusive,
-    } = getBookingDayBounds(date);
+    const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
+      getDayWindow(date);
 
     const service = await prisma.barbershopService.findFirst({
       where: {
@@ -156,17 +132,10 @@ export const createBooking = criticalActionClient
       },
     });
 
-    const hasCollision = hasMinuteIntervalOverlap(
+    const hasCollision = checkTimeSlotCollision(
       getBookingMinuteOfDay(date),
       service.durationInMinutes,
-      bookings.map((booking) => {
-        const startMinute = getBookingMinuteOfDay(getBookingStartDate(booking));
-        const durationInMinutes = getBookingDurationMinutes(booking);
-        return {
-          startMinute,
-          endMinute: startMinute + durationInMinutes,
-        };
-      }),
+      bookings,
     );
 
     if (hasCollision) {

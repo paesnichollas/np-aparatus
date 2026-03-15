@@ -1,8 +1,8 @@
 "use server";
 
 import { protectedActionClient } from "@/lib/action-client";
+import { resolveAppBaseUrl } from "@/lib/app-url";
 import { prisma } from "@/lib/prisma";
-import { headers } from "next/headers";
 import { returnValidationErrors } from "next-safe-action";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -10,45 +10,6 @@ import { z } from "zod";
 const inputSchema = z.object({
   bookingId: z.uuid(),
 });
-
-const parseAbsoluteHttpUrl = (value: string | null | undefined) => {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(normalizedValue);
-
-    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      return null;
-    }
-
-    return parsedUrl;
-  } catch {
-    return null;
-  }
-};
-
-const getAppBaseUrl = async () => {
-  const envAppUrl = parseAbsoluteHttpUrl(process.env.NEXT_PUBLIC_APP_URL);
-
-  if (envAppUrl) {
-    return envAppUrl;
-  }
-
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-
-  if (!host) {
-    return null;
-  }
-
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-
-  return parseAbsoluteHttpUrl(`${protocol}://${host}`);
-};
 
 const resolveBookingTotalPriceInCents = (booking: {
   totalPriceInCents: number | null;
@@ -224,7 +185,7 @@ export const createBookingPaymentCheckoutSession = protectedActionClient
       });
     }
 
-    const appBaseUrl = await getAppBaseUrl();
+    const appBaseUrl = await resolveAppBaseUrl();
     if (!appBaseUrl) {
       returnValidationErrors(inputSchema, {
         _errors: ["Configuração de URL da aplicação inválida. Tente novamente."],

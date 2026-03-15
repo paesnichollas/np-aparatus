@@ -116,3 +116,20 @@ export const formatPhoneListBRInput = (value: string) => {
 export const toE164BR = (input: string) => {
   return normalizePhoneToE164(input);
 };
+
+export const formatPhonesInput = (phones: string[]) => {
+  return phones
+    .map((phone) => {
+      const normalizedPhone = phone.trim();
+      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
+      return displayPhone || normalizedPhone;
+    })
+    .filter(Boolean)
+    .join(", ");
+};
+
+export const isValidPhoneDigits = (phone: string) => {
+  return (
+    phone.length >= BR_PHONE_MIN_LENGTH && phone.length <= BR_PHONE_MAX_LENGTH
+  );
+};

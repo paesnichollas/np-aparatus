@@ -21,8 +21,11 @@ import {
   BR_PHONE_MIN_LENGTH,
   formatPhoneBRDisplay,
   formatPhoneListBRInput,
+  formatPhonesInput,
+  isValidPhoneDigits,
   parsePhoneListToDigits,
 } from "@/lib/phone";
+import { getValidationErrorMessageWithNested } from "@/lib/action-errors";
 import { normalizePublicSlug } from "@/lib/public-slug";
 
 type FormBarbershop = {
@@ -55,54 +58,6 @@ interface BarbershopAdminFormProps {
   mode: "create" | "edit";
   barbershop?: FormBarbershop;
 }
-
-const formatPhonesInput = (phones: string[]) => {
-  return phones
-    .map((phone) => {
-      const normalizedPhone = phone.trim();
-      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
-      return displayPhone || normalizedPhone;
-    })
-    .filter(Boolean)
-    .join(", ");
-};
-
-const isValidPhoneDigits = (phone: string) => {
-  return phone.length >= BR_PHONE_MIN_LENGTH && phone.length <= BR_PHONE_MAX_LENGTH;
-};
-
-const getValidationError = (validationErrors: unknown) => {
-  const getFirstErrorFromNode = (value: unknown): string | null => {
-    if (!value || typeof value !== "object") {
-      return null;
-    }
-
-    const errors = (value as { _errors?: unknown })._errors;
-
-    if (Array.isArray(errors)) {
-      const firstStringError = errors.find(
-        (errorItem): errorItem is string =>
-          typeof errorItem === "string" && errorItem.trim().length > 0,
-      );
-
-      if (firstStringError) {
-        return firstStringError;
-      }
-    }
-
-    for (const nestedValue of Object.values(value as Record<string, unknown>)) {
-      const nestedError = getFirstErrorFromNode(nestedValue);
-
-      if (nestedError) {
-        return nestedError;
-      }
-    }
-
-    return null;
-  };
-
-  return getFirstErrorFromNode(validationErrors);
-};
 
 const normalizeUploadUrlValue = (value: string | null) => {
   if (typeof value !== "string") {
@@ -209,7 +164,7 @@ const BarbershopAdminForm = ({ mode, barbershop }: BarbershopAdminFormProps) => 
         whatsappFrom: plan === "PRO" ? normalizedWhatsappFrom : null,
         whatsappEnabled: plan === "PRO" ? whatsappEnabled : false,
       });
-      const validationError = getValidationError(result.validationErrors);
+      const validationError = getValidationErrorMessageWithNested(result.validationErrors);
 
       if (validationError) {
         toast.error(validationError);
@@ -259,7 +214,7 @@ const BarbershopAdminForm = ({ mode, barbershop }: BarbershopAdminFormProps) => 
       whatsappEnabled: plan === "PRO" ? whatsappEnabled : false,
       barbershopId: barbershop.id,
     });
-    const validationError = getValidationError(result.validationErrors);
+    const validationError = getValidationErrorMessageWithNested(result.validationErrors);
 
     if (validationError) {
       toast.error(validationError);

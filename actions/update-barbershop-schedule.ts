@@ -1,9 +1,9 @@
 "use server";
 
+import { getOwnerBarbershopContextForMutation } from "@/data/barbershops";
 import { protectedActionClient } from "@/lib/action-client";
-import { revalidatePublicBarbershopCache } from "@/lib/cache-invalidation";
+import { revalidateOwnerBarbershopCache } from "@/lib/cache-invalidation";
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
 import { returnValidationErrors } from "next-safe-action";
 import { z } from "zod";
 
@@ -44,17 +44,10 @@ export const updateBarbershopSchedule = protectedActionClient
   .inputSchema(inputSchema)
   .action(
     async ({ parsedInput: { barbershopId, openingHours }, ctx: { user } }) => {
-      const barbershop = await prisma.barbershop.findFirst({
-        where: {
-          id: barbershopId,
-          ownerId: user.id,
-        },
-        select: {
-          id: true,
-          slug: true,
-          publicSlug: true,
-        },
-      });
+      const barbershop = await getOwnerBarbershopContextForMutation(
+        barbershopId,
+        user.id,
+      );
 
       if (!barbershop) {
         returnValidationErrors(inputSchema, {
@@ -87,8 +80,7 @@ export const updateBarbershopSchedule = protectedActionClient
         ),
       );
 
-      revalidatePath("/owner");
-      revalidatePublicBarbershopCache({
+      revalidateOwnerBarbershopCache({
         barbershopId: barbershop.id,
         slug: barbershop.slug,
         publicSlug: barbershop.publicSlug,

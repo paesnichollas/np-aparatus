@@ -21,6 +21,11 @@ import {
 import BarbershopStatusToggle from "@/components/admin/barbershop-status-toggle";
 import { adminListBarbershops } from "@/data/admin/barbershops";
 import { formatPhoneBRDisplay } from "@/lib/phone";
+import {
+  parseFilterParam,
+  parsePageParam,
+  parseStringParam,
+} from "@/lib/search-params";
 
 interface AdminBarbershopsPageProps {
   searchParams: Promise<{
@@ -31,47 +36,8 @@ interface AdminBarbershopsPageProps {
   }>;
 }
 
-const parseStringParam = (value: string | string[] | undefined) => {
-  if (!value) {
-    return "";
-  }
-
-  return Array.isArray(value) ? value[0] ?? "" : value;
-};
-
-const parsePageParam = (value: string | string[] | undefined) => {
-  const rawValue = parseStringParam(value);
-  const parsedPage = Number(rawValue);
-
-  if (!Number.isFinite(parsedPage) || parsedPage < 1) {
-    return 1;
-  }
-
-  return Math.floor(parsedPage);
-};
-
 const statusFilterValues = new Set(["ALL", "ACTIVE", "INACTIVE"]);
 const exclusiveFilterValues = new Set(["ALL", "EXCLUSIVE", "NON_EXCLUSIVE"]);
-
-const parseStatusFilter = (value: string | string[] | undefined) => {
-  const normalizedValue = parseStringParam(value).toUpperCase();
-
-  if (statusFilterValues.has(normalizedValue)) {
-    return normalizedValue as "ALL" | "ACTIVE" | "INACTIVE";
-  }
-
-  return "ALL";
-};
-
-const parseExclusiveFilter = (value: string | string[] | undefined) => {
-  const normalizedValue = parseStringParam(value).toUpperCase();
-
-  if (exclusiveFilterValues.has(normalizedValue)) {
-    return normalizedValue as "ALL" | "EXCLUSIVE" | "NON_EXCLUSIVE";
-  }
-
-  return "ALL";
-};
 
 const AdminBarbershopsPage = async ({
   searchParams,
@@ -79,8 +45,16 @@ const AdminBarbershopsPage = async ({
   const resolvedSearchParams = await searchParams;
   const search = parseStringParam(resolvedSearchParams.q);
   const page = parsePageParam(resolvedSearchParams.page);
-  const status = parseStatusFilter(resolvedSearchParams.status);
-  const exclusive = parseExclusiveFilter(resolvedSearchParams.exclusive);
+  const status = parseFilterParam(
+    resolvedSearchParams.status,
+    statusFilterValues,
+    "ALL",
+  ) as "ALL" | "ACTIVE" | "INACTIVE";
+  const exclusive = parseFilterParam(
+    resolvedSearchParams.exclusive,
+    exclusiveFilterValues,
+    "ALL",
+  ) as "ALL" | "EXCLUSIVE" | "NON_EXCLUSIVE";
 
   const result = await adminListBarbershops({
     search,

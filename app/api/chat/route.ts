@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import z from "zod";
 
 import { createBookingCheckoutSession } from "@/actions/create-booking-checkout-session";
+import {
+  getServerErrorMessage,
+  getValidationErrorMessage,
+} from "@/lib/action-errors";
 import { getDateAvailableTimeSlots } from "@/actions/get-date-available-time-slots";
 import { listBarbersByBarbershop } from "@/data/barbers";
 import { Prisma } from "@/generated/prisma/client";
@@ -48,27 +52,6 @@ const FORBIDDEN_BARBERSHOP_CONTEXT_ERROR_CODE = "FORBIDDEN_CONTEXT";
 const INVALID_DATE_ONLY_MESSAGE = "Data inválida. Use o formato YYYY-MM-DD.";
 const INVALID_BOOKING_DATE_TIME_MESSAGE =
   "Data e horário inválidos. Use o formato YYYY-MM-DDTHH:mm:ss.";
-
-const getValidationErrorMessage = (validationErrors: unknown) => {
-  if (!validationErrors || typeof validationErrors !== "object") {
-    return null;
-  }
-
-  const rootErrors = (validationErrors as { _errors?: unknown })._errors;
-  if (!Array.isArray(rootErrors) || rootErrors.length === 0) {
-    return null;
-  }
-
-  return typeof rootErrors[0] === "string" ? rootErrors[0] : null;
-};
-
-const getServerErrorMessage = (serverError: unknown) => {
-  if (typeof serverError === "string" && serverError.trim().length > 0) {
-    return serverError.trim();
-  }
-
-  return null;
-};
 
 const isUnauthorizedErrorMessage = (message: string | null) => {
   if (!message) {

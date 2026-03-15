@@ -18,8 +18,11 @@ import {
   BR_PHONE_MIN_LENGTH,
   formatPhoneBRDisplay,
   formatPhoneListBRInput,
+  formatPhonesInput,
+  isValidPhoneDigits,
   parsePhoneListToDigits,
 } from "@/lib/phone";
+import { normalizePublicSlug } from "@/lib/public-slug";
 import { Copy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
@@ -35,29 +38,6 @@ type BrandingSettingsFormProps = {
   imageUrl: string | null;
   slug: string;
   shareLink: string;
-};
-
-const normalizeSlugValue = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-const formatPhonesInput = (phones: string[]) =>
-  phones
-    .map((phone) => {
-      const normalizedPhone = phone.trim();
-      const displayPhone = formatPhoneBRDisplay(normalizedPhone);
-      return displayPhone || normalizedPhone;
-    })
-    .filter(Boolean)
-    .join(", ");
-
-const isValidPhoneDigits = (phone: string) => {
-  return phone.length >= BR_PHONE_MIN_LENGTH && phone.length <= BR_PHONE_MAX_LENGTH;
 };
 
 const BrandingSettingsForm = ({
@@ -87,7 +67,7 @@ const BrandingSettingsForm = ({
   );
 
   const isFormBusy = isPending || isUploadingBackgroundImage;
-  const slugPreview = useMemo(() => normalizeSlugValue(slugInput), [slugInput]);
+  const slugPreview = useMemo(() => normalizePublicSlug(slugInput), [slugInput]);
 
   const handleCopyShareLink = async () => {
     await navigator.clipboard.writeText(shareLink);

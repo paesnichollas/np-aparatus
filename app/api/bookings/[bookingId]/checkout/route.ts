@@ -1,4 +1,8 @@
 import { createBookingPaymentCheckoutSession } from "@/actions/create-booking-payment-checkout-session";
+import {
+  getServerErrorMessage,
+  getValidationErrorMessage,
+} from "@/lib/action-errors";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -13,27 +17,6 @@ interface CheckoutBookingRouteContext {
     bookingId: string;
   }>;
 }
-
-const getValidationErrorMessage = (validationErrors: unknown) => {
-  if (!validationErrors || typeof validationErrors !== "object") {
-    return null;
-  }
-
-  const rootErrors = (validationErrors as { _errors?: unknown })._errors;
-  if (!Array.isArray(rootErrors) || rootErrors.length === 0) {
-    return null;
-  }
-
-  return typeof rootErrors[0] === "string" ? rootErrors[0] : null;
-};
-
-const getServerErrorMessage = (serverError: unknown) => {
-  if (typeof serverError === "string" && serverError.trim().length > 0) {
-    return serverError.trim();
-  }
-
-  return null;
-};
 
 const buildBookingsRedirectUrl = ({
   request,

@@ -6,8 +6,7 @@ import { getValidationErrorMessageWithNested } from "@/lib/action-errors";
 import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
-import { adminDisableBarbershopAccessAction } from "@/actions/admin-disable-barbershop-access";
-import { adminEnableBarbershopAccessAction } from "@/actions/admin-enable-barbershop-access";
+import { adminSetBarbershopAccessAction } from "@/actions/admin-set-barbershop-access";
 import { adminPromoteToOwnerAndAssignBarbershopAction } from "@/actions/admin-promote-to-owner-and-assign-barbershop";
 import { adminUpdateUserRoleAction } from "@/actions/admin-update-user-role";
 import {
@@ -63,8 +62,9 @@ type BarbershopAccessParams = {
 type OwnerUserRowProps = {
   barbershopDatalistId: string;
   isCurrentRowBusy: boolean;
-  onDisableBarbershopAccess: (params: BarbershopAccessParams) => void;
-  onEnableBarbershopAccess: (params: BarbershopAccessParams) => void;
+  onSetBarbershopAccess: (
+    params: BarbershopAccessParams & { isActive: boolean },
+  ) => void;
   onPromoteToOwner: (userId: string) => void;
   onSelectedBarbershopChange: (userId: string, value: string) => void;
   onUpdateRole: (userId: string, role: UpdatableRole) => void;
@@ -76,8 +76,7 @@ const OwnerUserRow = memo(
   ({
     barbershopDatalistId,
     isCurrentRowBusy,
-    onDisableBarbershopAccess,
-    onEnableBarbershopAccess,
+    onSetBarbershopAccess,
     onPromoteToOwner,
     onSelectedBarbershopChange,
     onUpdateRole,
@@ -99,19 +98,12 @@ const OwnerUserRow = memo(
         return;
       }
 
-      if (ownedBarbershop.isActive) {
-        onDisableBarbershopAccess({
-          userId: user.id,
-          barbershopId: ownedBarbershop.id,
-        });
-        return;
-      }
-
-      onEnableBarbershopAccess({
+      onSetBarbershopAccess({
         userId: user.id,
         barbershopId: ownedBarbershop.id,
+        isActive: !ownedBarbershop.isActive,
       });
-    }, [onDisableBarbershopAccess, onEnableBarbershopAccess, ownedBarbershop, user.id]);
+    }, [onSetBarbershopAccess, ownedBarbershop, user.id]);
 
     const handleBarbershopInputChange = useCallback(
       (event: ChangeEvent<HTMLInputElement>) => {
@@ -266,19 +258,14 @@ const OwnersManagementTable = ({
     isPending: isPromotingToOwner,
   } = useAction(adminPromoteToOwnerAndAssignBarbershopAction);
   const {
-    executeAsync: executeDisableBarbershopAccess,
-    isPending: isDisablingBarbershopAccess,
-  } = useAction(adminDisableBarbershopAccessAction);
-  const {
-    executeAsync: executeEnableBarbershopAccess,
-    isPending: isEnablingBarbershopAccess,
-  } = useAction(adminEnableBarbershopAccessAction);
+    executeAsync: executeSetBarbershopAccess,
+    isPending: isSettingBarbershopAccess,
+  } = useAction(adminSetBarbershopAccessAction);
 
   const isBusy =
     isUpdatingUserRole ||
     isPromotingToOwner ||
-    isDisablingBarbershopAccess ||
-    isEnablingBarbershopAccess;
+    isSettingBarbershopAccess;
 
   const handleUpdateRole = useCallback(
     async (userId: string, role: UpdatableRole) => {
@@ -348,12 +335,17 @@ const OwnersManagementTable = ({
     [executePromoteToOwner, router, selectedBarbershopByUserId],
   );
 
-  const handleDisableBarbershopAccess = useCallback(
-    async ({ userId, barbershopId }: BarbershopAccessParams) => {
+  const handleSetBarbershopAccess = useCallback(
+    async ({
+      userId,
+      barbershopId,
+      isActive,
+    }: BarbershopAccessParams & { isActive: boolean }) => {
       setCurrentMutationUserId(userId);
 
-      const result = await executeDisableBarbershopAccess({
+      const result = await executeSetBarbershopAccess({
         barbershopId,
+        isActive,
       });
 
       const validationError = getValidationErrorMessageWithNested(result.validationErrors);
@@ -365,45 +357,24 @@ const OwnersManagementTable = ({
       }
 
       if (result.serverError || !result.data) {
-        toast.error("Falha ao desabilitar acesso da barbearia.");
+        toast.error(
+          isActive
+            ? "Falha ao reativar acesso da barbearia."
+            : "Falha ao desabilitar acesso da barbearia.",
+        );
         setCurrentMutationUserId(null);
         return;
       }
 
-      toast.success("Acesso da barbearia desabilitado.");
+      toast.success(
+        isActive
+          ? "Acesso da barbearia reativado."
+          : "Acesso da barbearia desabilitado.",
+      );
       setCurrentMutationUserId(null);
       router.refresh();
     },
-    [executeDisableBarbershopAccess, router],
-  );
-
-  const handleEnableBarbershopAccess = useCallback(
-    async ({ userId, barbershopId }: BarbershopAccessParams) => {
-      setCurrentMutationUserId(userId);
-
-      const result = await executeEnableBarbershopAccess({
-        barbershopId,
-      });
-
-      const validationError = getValidationErrorMessageWithNested(result.validationErrors);
-
-      if (validationError) {
-        toast.error(validationError);
-        setCurrentMutationUserId(null);
-        return;
-      }
-
-      if (result.serverError || !result.data) {
-        toast.error("Falha ao reativar acesso da barbearia.");
-        setCurrentMutationUserId(null);
-        return;
-      }
-
-      toast.success("Acesso da barbearia reativado.");
-      setCurrentMutationUserId(null);
-      router.refresh();
-    },
-    [executeEnableBarbershopAccess, router],
+    [executeSetBarbershopAccess, router],
   );
 
   const handleSelectedBarbershopChange = useCallback(
@@ -448,8 +419,7 @@ const OwnersManagementTable = ({
                 barbershopDatalistId="admin-barbershop-options"
                 onUpdateRole={handleUpdateRole}
                 onPromoteToOwner={handlePromoteToOwner}
-                onDisableBarbershopAccess={handleDisableBarbershopAccess}
-                onEnableBarbershopAccess={handleEnableBarbershopAccess}
+                onSetBarbershopAccess={handleSetBarbershopAccess}
                 onSelectedBarbershopChange={handleSelectedBarbershopChange}
               />
             ))

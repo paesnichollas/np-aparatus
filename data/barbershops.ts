@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { parseAbsoluteHttpUrl } from "@/lib/app-url";
 import { CONFIRMED_BOOKING_PAYMENT_WHERE } from "@/lib/booking-payment";
 import { buildPublicSlugCandidate, getPublicSlugBase } from "@/lib/public-slug";
 import { reconcilePendingBookingsForBarbershop } from "@/lib/stripe-booking-reconciliation";
@@ -293,26 +294,6 @@ const getBarbershopByPublicSlugCached = (publicSlug: string) => {
       tags: [barbershopByPublicSlugTag(publicSlug)],
     },
   );
-};
-
-const parseAbsoluteHttpUrl = (value: string | null | undefined) => {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(normalizedValue);
-
-    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      return null;
-    }
-
-    return parsedUrl;
-  } catch {
-    return null;
-  }
 };
 
 const resolveAvailablePublicSlug = async ({
@@ -763,22 +744,55 @@ export const getAdminBarbershopIdByUserId = async (userId: string) => {
   return barbershop;
 };
 
-export const getOwnerBarbershopContextForMutation = async (
-  barbershopId: string,
-  ownerId: string,
-) => {
-  return prisma.barbershop.findFirst({
+export type OwnerBarbershopContext = {
+  id: string;
+  slug: string;
+  publicSlug: string;
+  exclusiveBarber: boolean;
+};
+
+const loadOwnerBarbershopContext = async (
+  params:
+    | { barbershopId: string; ownerId: string }
+    | { ownerId: string },
+): Promise<OwnerBarbershopContext | null> => {
+  if ("barbershopId" in params) {
+    return prisma.barbershop.findFirst({
+      where: {
+        id: params.barbershopId,
+        ownerId: params.ownerId,
+      },
+      select: {
+        id: true,
+        slug: true,
+        publicSlug: true,
+        exclusiveBarber: true,
+      },
+    });
+  }
+
+  const barbershop = await prisma.barbershop.findFirst({
     where: {
-      id: barbershopId,
-      ownerId,
+      ownerId: params.ownerId,
     },
     select: {
       id: true,
       slug: true,
       publicSlug: true,
+      exclusiveBarber: true,
     },
   });
+
+  return barbershop;
 };
+
+export const getOwnerBarbershopContextForMutation = (
+  barbershopId: string,
+  ownerId: string,
+) => loadOwnerBarbershopContext({ barbershopId, ownerId });
+
+export const getOwnerBarbershopContextByOwnerId = (ownerId: string) =>
+  loadOwnerBarbershopContext({ ownerId });
 
 export const getOwnerBarbershopByUserId = getAdminBarbershopByUserId;
 export const getOwnerBarbershopIdByUserId = getAdminBarbershopIdByUserId;

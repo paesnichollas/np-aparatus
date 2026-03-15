@@ -1,11 +1,12 @@
 import "server-only";
 
 import { type Prisma } from "@/generated/prisma/client";
+import {
+  normalizePage,
+  normalizePageSize,
+} from "@/data/admin/shared";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/rbac";
-
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
 
 const ADMIN_BOOKING_LIST_SELECT = {
   id: true,
@@ -69,22 +70,6 @@ interface AdminListBookingsInput {
   pageSize?: number;
 }
 
-const normalizePage = (page: number | undefined) => {
-  if (!page || Number.isNaN(page) || page < 1) {
-    return 1;
-  }
-
-  return Math.floor(page);
-};
-
-const normalizePageSize = (pageSize: number | undefined) => {
-  if (!pageSize || Number.isNaN(pageSize) || pageSize < 1) {
-    return DEFAULT_PAGE_SIZE;
-  }
-
-  return Math.min(Math.floor(pageSize), MAX_PAGE_SIZE);
-};
-
 export const adminListBookings = async ({
   barbershopId,
   status = "ALL",
@@ -96,7 +81,7 @@ export const adminListBookings = async ({
   await requireAdmin({ onUnauthorized: "throw" });
 
   const normalizedPage = normalizePage(page);
-  const normalizedPageSize = normalizePageSize(pageSize);
+  const normalizedPageSize = normalizePageSize(pageSize, 100, 20);
   const now = new Date();
 
   const where: Prisma.BookingWhereInput = {};

@@ -1,11 +1,11 @@
 "use server";
 
 import { criticalActionClient } from "@/lib/action-client";
+import { resolveAppBaseUrl } from "@/lib/app-url";
 import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
 import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
 import {
   BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingDayBounds,
   getBookingMinuteOfDay,
   isBookingDateTimeAtOrBeforeNowWithBuffer,
 } from "@/lib/booking-time";
@@ -13,14 +13,18 @@ import {
   calculateBookingTotals,
   getBookingDurationMinutes,
   getBookingStartDate,
-} from "@/lib/booking-calculations";
-import { hasMinuteIntervalOverlap } from "@/lib/booking-interval";
+} from "@/lib/booking-mutation-helpers";
 import {
   ACTIVE_BOOKING_PAYMENT_WHERE,
   resolveInitialPaymentState,
 } from "@/lib/booking-payment";
+import {
+  checkTimeSlotCollision,
+  deduplicateServiceIds,
+  getDayWindow,
+  hasInvalidServiceData,
+} from "@/lib/booking-mutation-helpers";
 import { prisma } from "@/lib/prisma";
-import { headers } from "next/headers";
 import { returnValidationErrors } from "next-safe-action";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -32,69 +36,6 @@ const inputSchema = z.object({
   startAt: z.date(),
   paymentMethod: z.enum(["STRIPE", "IN_PERSON"]).optional(),
 });
-
-const hasInvalidServiceData = (service: {
-  name: string;
-  priceInCents: number;
-  durationInMinutes: number;
-}) => {
-  if (service.name.trim().length === 0) {
-    return true;
-  }
-
-  if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0) {
-    return true;
-  }
-
-  if (
-    !Number.isInteger(service.durationInMinutes) ||
-    service.durationInMinutes < 5
-  ) {
-    return true;
-  }
-
-  return false;
-};
-
-const parseAbsoluteHttpUrl = (value: string | null | undefined) => {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(normalizedValue);
-
-    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      return null;
-    }
-
-    return parsedUrl;
-  } catch {
-    return null;
-  }
-};
-
-const getAppBaseUrl = async () => {
-  const envAppUrl = parseAbsoluteHttpUrl(process.env.NEXT_PUBLIC_APP_URL);
-
-  if (envAppUrl) {
-    return envAppUrl;
-  }
-
-  const requestHeaders = await headers();
-  const host =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-
-  if (!host) {
-    return null;
-  }
-
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-
-  return parseAbsoluteHttpUrl(`${protocol}://${host}`);
-};
 
 export const createBookingCheckoutSession = criticalActionClient
   .inputSchema(inputSchema)
@@ -122,12 +63,10 @@ export const createBookingCheckoutSession = criticalActionClient
         });
       }
 
-      const {
-        start: selectedDateStart,
-        endExclusive: selectedDateEndExclusive,
-      } = getBookingDayBounds(startAt);
+      const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
+        getDayWindow(startAt);
 
-      const uniqueServiceIds = Array.from(new Set(serviceIds));
+      const uniqueServiceIds = deduplicateServiceIds(serviceIds);
       if (uniqueServiceIds.length === 0) {
         returnValidationErrors(inputSchema, {
           _errors: ["Selecione pelo menos um serviço."],
@@ -250,17 +189,10 @@ export const createBookingCheckoutSession = criticalActionClient
         },
       });
 
-      const hasCollision = hasMinuteIntervalOverlap(
+      const hasCollision = checkTimeSlotCollision(
         getBookingMinuteOfDay(startAt),
         totalDurationMinutes,
-        bookings.map((booking) => {
-          const startMinute = getBookingMinuteOfDay(getBookingStartDate(booking));
-          const durationInMinutes = getBookingDurationMinutes(booking);
-          return {
-            startMinute,
-            endMinute: startMinute + durationInMinutes,
-          };
-        }),
+        bookings,
       );
 
       if (hasCollision) {
@@ -343,7 +275,7 @@ export const createBookingCheckoutSession = criticalActionClient
         });
       }
 
-      const appBaseUrl = await getAppBaseUrl();
+      const appBaseUrl = await resolveAppBaseUrl();
 
       if (!appBaseUrl) {
         console.error(

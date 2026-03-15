@@ -1,6 +1,6 @@
 "use server";
 
-import { getOwnerBarbershopIdByUserId } from "@/data/barbershops";
+import { getOwnerBarbershopContextByOwnerId } from "@/data/barbershops";
 import { getServiceById, updateServiceById } from "@/data/services";
 import { protectedActionClient } from "@/lib/action-client";
 import { revalidateOwnerBarbershopCache } from "@/lib/cache-invalidation";
@@ -33,7 +33,7 @@ export const updateService = protectedActionClient
       },
       ctx: { user },
     }) => {
-      const ownerBarbershop = await getOwnerBarbershopIdByUserId(user.id);
+      const ownerBarbershop = await getOwnerBarbershopContextByOwnerId(user.id);
 
       if (!ownerBarbershop) {
         returnValidationErrors(inputSchema, {

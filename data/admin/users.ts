@@ -1,43 +1,15 @@
 import "server-only";
 
 import { type Prisma, type UserRole } from "@/generated/prisma/client";
+import {
+  normalizePage,
+  normalizePageSize,
+  normalizeRequiredId,
+  normalizeSearch,
+} from "@/data/admin/shared";
 import { demoteOwnerToCustomerByAdmin, promoteUserToOwnerByAdmin } from "@/data/owner-assignment";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/rbac";
-
-const DEFAULT_PAGE_SIZE = 12;
-const MAX_PAGE_SIZE = 50;
-
-const normalizePage = (page: number | undefined) => {
-  if (!page || Number.isNaN(page) || page < 1) {
-    return 1;
-  }
-
-  return Math.floor(page);
-};
-
-const normalizePageSize = (pageSize: number | undefined) => {
-  if (!pageSize || Number.isNaN(pageSize) || pageSize < 1) {
-    return DEFAULT_PAGE_SIZE;
-  }
-
-  return Math.min(Math.floor(pageSize), MAX_PAGE_SIZE);
-};
-
-const normalizeSearch = (search: string | undefined) => {
-  const normalizedSearch = search?.trim();
-  return normalizedSearch?.length ? normalizedSearch : null;
-};
-
-const normalizeRequiredId = (value: string, errorMessage: string) => {
-  const normalizedValue = value.trim();
-
-  if (!normalizedValue) {
-    throw new Error(errorMessage);
-  }
-
-  return normalizedValue;
-};
 
 interface AdminListUsersInput {
   role?: UserRole | "ALL";
@@ -50,7 +22,7 @@ export const adminListUsers = async (input: AdminListUsersInput = {}) => {
   await requireAdmin({ onUnauthorized: "throw" });
 
   const page = normalizePage(input.page);
-  const pageSize = normalizePageSize(input.pageSize);
+  const pageSize = normalizePageSize(input.pageSize, 50, 12);
   const search = normalizeSearch(input.search);
   const roleFilter = input.role && input.role !== "ALL" ? input.role : null;
 
@@ -294,12 +266,13 @@ export const adminPromoteToOwnerAndAssignBarbershop = async ({
   });
 };
 
-interface AdminToggleBarbershopAccessInput {
+interface AdminSetBarbershopAccessInput {
   actorUserId: string;
   barbershopId: string;
+  isActive: boolean;
 }
 
-const getBarbershopById = async (
+const getBarbershopContextForRevalidation = async (
   tx: Prisma.TransactionClient,
   barbershopId: string,
 ) => {
@@ -310,6 +283,7 @@ const getBarbershopById = async (
     select: {
       id: true,
       slug: true,
+      publicSlug: true,
     },
   });
 
@@ -320,10 +294,11 @@ const getBarbershopById = async (
   return barbershop;
 };
 
-export const adminDisableBarbershopAccess = async ({
+export const adminSetBarbershopAccess = async ({
   actorUserId,
   barbershopId,
-}: AdminToggleBarbershopAccessInput) => {
+  isActive,
+}: AdminSetBarbershopAccessInput) => {
   const adminUser = await requireAdmin({ onUnauthorized: "throw" });
 
   const normalizedActorUserId = normalizeRequiredId(
@@ -340,62 +315,25 @@ export const adminDisableBarbershopAccess = async ({
   }
 
   return prisma.$transaction(async (tx) => {
-    const barbershop = await getBarbershopById(tx, normalizedBarbershopId);
+    const barbershop = await getBarbershopContextForRevalidation(
+      tx,
+      normalizedBarbershopId,
+    );
 
     await tx.barbershop.updateMany({
       where: {
         id: barbershop.id,
       },
       data: {
-        isActive: false,
+        isActive,
       },
     });
 
     return {
       barbershopId: barbershop.id,
       barbershopSlug: barbershop.slug,
-      barbershopIsActive: false,
-      affectedUsersCount: 0,
-      revokedSessionsCount: 0,
-    };
-  });
-};
-
-export const adminEnableBarbershopAccess = async ({
-  actorUserId,
-  barbershopId,
-}: AdminToggleBarbershopAccessInput) => {
-  const adminUser = await requireAdmin({ onUnauthorized: "throw" });
-
-  const normalizedActorUserId = normalizeRequiredId(
-    actorUserId,
-    "Administrador inválido.",
-  );
-  const normalizedBarbershopId = normalizeRequiredId(
-    barbershopId,
-    "Barbearia inválida.",
-  );
-
-  if (adminUser.id !== normalizedActorUserId) {
-    throw new Error("Administrador inválido.");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const barbershop = await getBarbershopById(tx, normalizedBarbershopId);
-
-    await tx.barbershop.updateMany({
-      where: {
-        id: barbershop.id,
-      },
-      data: {
-        isActive: true,
-      },
-    });
-
-    return {
-      barbershopId: barbershop.id,
-      barbershopSlug: barbershop.slug,
-      barbershopIsActive: true,
+      barbershopPublicSlug: barbershop.publicSlug,
+      barbershopIsActive: isActive,
       affectedUsersCount: 0,
       revokedSessionsCount: 0,
     };

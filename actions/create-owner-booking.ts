@@ -1,23 +1,25 @@
 "use server";
 
-import { getOwnerBarbershopIdByUserId } from "@/data/barbershops";
+import { getOwnerBarbershopContextByOwnerId } from "@/data/barbershops";
 import { protectedActionClient } from "@/lib/action-client";
 import {
   calculateBookingTotals,
+  checkTimeSlotCollision,
+  deduplicateServiceIds,
   getBookingDurationMinutes,
   getBookingStartDate,
-} from "@/lib/booking-calculations";
-import { hasMinuteIntervalOverlap } from "@/lib/booking-interval";
+  hasInvalidServiceData,
+} from "@/lib/booking-mutation-helpers";
 import {
   ACTIVE_BOOKING_PAYMENT_WHERE,
   UNPAID_PAYMENT_STATUS,
 } from "@/lib/booking-payment";
 import {
   BOOKING_SLOT_BUFFER_MINUTES,
-  getBookingDayBounds,
   getBookingMinuteOfDay,
   isBookingDateTimeAtOrBeforeNowWithBuffer,
 } from "@/lib/booking-time";
+import { getDayWindow } from "@/lib/booking-mutation-helpers";
 import { revalidateBookingSurfaces } from "@/lib/cache-invalidation";
 import { scheduleBookingNotificationJobs } from "@/lib/notifications/notification-jobs";
 import { prisma } from "@/lib/prisma";
@@ -30,29 +32,6 @@ const inputSchema = z.object({
   serviceIds: z.array(z.uuid()).min(1, "Selecione ao menos um serviço."),
   date: z.date(),
 });
-
-const hasInvalidServiceData = (service: {
-  name: string;
-  priceInCents: number;
-  durationInMinutes: number;
-}) => {
-  if (service.name.trim().length === 0) {
-    return true;
-  }
-
-  if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0) {
-    return true;
-  }
-
-  if (
-    !Number.isInteger(service.durationInMinutes) ||
-    service.durationInMinutes < 5
-  ) {
-    return true;
-  }
-
-  return false;
-};
 
 export const createOwnerBooking = protectedActionClient
   .inputSchema(inputSchema)
@@ -67,7 +46,7 @@ export const createOwnerBooking = protectedActionClient
         });
       }
 
-      const ownerBarbershop = await getOwnerBarbershopIdByUserId(user.id);
+      const ownerBarbershop = await getOwnerBarbershopContextByOwnerId(user.id);
 
       if (!ownerBarbershop) {
         returnValidationErrors(inputSchema, {
@@ -88,7 +67,7 @@ export const createOwnerBooking = protectedActionClient
         });
       }
 
-      const uniqueServiceIds = Array.from(new Set(serviceIds));
+      const uniqueServiceIds = deduplicateServiceIds(serviceIds);
 
       if (uniqueServiceIds.length === 0) {
         returnValidationErrors(inputSchema, {
@@ -96,10 +75,8 @@ export const createOwnerBooking = protectedActionClient
         });
       }
 
-      const {
-        start: selectedDateStart,
-        endExclusive: selectedDateEndExclusive,
-      } = getBookingDayBounds(date);
+      const { start: selectedDateStart, endExclusive: selectedDateEndExclusive } =
+        getDayWindow(date);
 
       const [clientUser, clientHistoryBooking, barber, services, barbershop] =
         await Promise.all([
@@ -232,17 +209,10 @@ export const createOwnerBooking = protectedActionClient
         },
       });
 
-      const hasCollision = hasMinuteIntervalOverlap(
+      const hasCollision = checkTimeSlotCollision(
         getBookingMinuteOfDay(date),
         totalDurationMinutes,
-        bookings.map((booking) => {
-          const startMinute = getBookingMinuteOfDay(getBookingStartDate(booking));
-          const durationInMinutes = getBookingDurationMinutes(booking);
-          return {
-            startMinute,
-            endMinute: startMinute + durationInMinutes,
-          };
-        }),
+        bookings,
       );
 
       if (hasCollision) {

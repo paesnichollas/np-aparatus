@@ -12,6 +12,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { adminListBarbershops } from "@/data/admin/barbershops";
 import { adminListUsers } from "@/data/admin/users";
+import {
+  parseFilterParam,
+  parsePageParam,
+  parseStringParam,
+} from "@/lib/search-params";
 import Link from "next/link";
 
 interface AdminOwnersPageProps {
@@ -22,25 +27,6 @@ interface AdminOwnersPageProps {
   }>;
 }
 
-const parseStringParam = (value: string | string[] | undefined) => {
-  if (!value) {
-    return "";
-  }
-
-  return Array.isArray(value) ? value[0] ?? "" : value;
-};
-
-const parsePageParam = (value: string | string[] | undefined) => {
-  const rawValue = parseStringParam(value);
-  const parsedPage = Number(rawValue);
-
-  if (!Number.isFinite(parsedPage) || parsedPage < 1) {
-    return 1;
-  }
-
-  return Math.floor(parsedPage);
-};
-
 const roleFilterValues = new Set<UserRole | "ALL">([
   "ALL",
   "CUSTOMER",
@@ -48,20 +34,14 @@ const roleFilterValues = new Set<UserRole | "ALL">([
   "ADMIN",
 ]);
 
-const parseRoleFilter = (value: string | string[] | undefined) => {
-  const normalizedValue = parseStringParam(value).toUpperCase();
-
-  if (roleFilterValues.has(normalizedValue as UserRole | "ALL")) {
-    return normalizedValue as UserRole | "ALL";
-  }
-
-  return "ALL";
-};
-
 const AdminOwnersPage = async ({ searchParams }: AdminOwnersPageProps) => {
   const resolvedSearchParams = await searchParams;
   const search = parseStringParam(resolvedSearchParams.q);
-  const role = parseRoleFilter(resolvedSearchParams.role);
+  const role = parseFilterParam(
+    resolvedSearchParams.role,
+    roleFilterValues,
+    "ALL",
+  );
   const page = parsePageParam(resolvedSearchParams.page);
 
   const [usersResult, barbershopsResult] = await Promise.all([

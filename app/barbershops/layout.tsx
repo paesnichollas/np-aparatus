@@ -1,13 +1,3 @@
-import { requireAuthenticatedUser } from "@/lib/rbac";
+import AuthenticatedLayout from "@/components/layouts/authenticated-layout";
 
-const BarbershopsLayout = async ({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) => {
-  await requireAuthenticatedUser();
-
-  return children;
-};
-
-export default BarbershopsLayout;
+export default AuthenticatedLayout;
